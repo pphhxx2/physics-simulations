@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D 透鏡成像光學模擬</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; font-family: '微軟正黑體', sans-serif; }
+        
+        /* 畫布佔滿全螢幕 */
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 0; cursor: grab; }
+        #canvas-container:active { cursor: grabbing; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* UI 介面樣式 */
+        #ui-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.9);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 95%;
+            max-width: 900px;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        /* 右上角資訊區 (左右並排) */
+        #info-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #f8fafc;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 15px 20px;
+            border-radius: 12px;
+            pointer-events: none;
+            z-index: 10;
+            border: 1px solid #334155;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+        }
+
+        .info-left {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 150px;
+        }
+
+        .info-right {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-left: 1px solid #475569;
+            padding-left: 20px;
+        }
+
+        #status-text { font-size: 18px; font-weight: bold; margin-bottom: 10px; display: block; color: #38bdf8; }
+        
+        .data-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; color: #cbd5e1; }
+        .data-row span:nth-child(2) { font-family: monospace; font-size: 14px; font-weight: bold; color: #fff;}
+        
+        .legend { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .line-dash { width: 15px; height: 2px; border-bottom: 2px dashed #94a3b8; display: inline-block; }
+        .line-solid { width: 15px; height: 2px; background-color: #00ffff; display: inline-block; }
+
+        /* 左側控制區 */
+        .left-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            min-width: 200px;
+            border-right: 1px solid #475569;
+            padding-right: 20px;
+        }
+
+        .btn-group { display: flex; gap: 8px; width: 100%; }
+
+        /* 光線開關區域樣式 */
+        .ray-toggles { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 6px; 
+            font-size: 13px; 
+            color: #cbd5e1; 
+            align-items: flex-start;
+            width: 100%;
+        }
+        .ray-toggles label { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .ray-toggles input[type="checkbox"] { accent-color: #0ea5e9; cursor: pointer; margin: 0; }
+
+        button {
+            background: #334155;
+            color: white;
+            border: 1px solid #475569;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: 0.3s;
+            flex: 1;
+        }
+
+        button:hover { background: #475569; }
+        
+        button.active {
+            background: #0ea5e9;
+            border-color: #0284c7;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
+        }
+
+        /* 右側滑桿區 */
+        .slider-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .slider-container { width: 100%; display: flex; flex-direction: column; gap: 5px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 14px; color: #e2e8f0; }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            -webkit-appearance: none; 
+            height: 6px;
+            background: #475569;
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #0ea5e9;
+        }
+        
+        @media (max-width: 768px) {
+            #ui-panel { flex-direction: column; gap: 15px; bottom: 10px; padding: 15px; }
+            .left-controls { border-right: none; border-bottom: 1px solid #475569; padding-bottom: 15px; padding-right: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 視覺化資訊面板 (無圖示精簡版) -->
+    <div id="info-overlay">
+        <div class="info-left">
+            <span id="status-text">倒立縮小實像</span>
+            <div class="data-row"><span>物距 (p):</span> <span id="val-p">15.0 cm</span></div>
+            <div class="data-row"><span>焦距 (f):</span> <span id="val-f">10.0 cm</span></div>
+            <div class="data-row"><span>像距 (q):</span> <span id="val-q">30.0 cm</span></div>
+            <div class="data-row"><span>放大率 (m):</span> <span id="val-m">-2.00</span></div>
+        </div>
+        
+        <div class="info-right">
+            <div class="legend"><span class="dot" style="background:#ef4444"></span> 實體物 (Object)</div>
+            <div class="legend"><span class="dot" style="background:#eab308;"></span> 實像 (Real Image)</div>
+            <div class="legend"><span class="dot" style="background:#22c55e;"></span> 虛像 (Virtual Image)</div>
+            <div class="legend" style="margin-top: 4px;"><span class="line-solid" style="background:#00ffff;"></span> 平行光 (Ray 1)</div>
+            <div class="legend"><span class="line-solid" style="background:#ff8800;"></span> 鏡心光 (Ray 2)</div>
+            <div class="legend"><span class="line-solid" style="background:#d946ef;"></span> 焦點光 (Ray 3)</div>
+            <div class="legend" style="margin-top: 4px;"><span class="line-solid" style="background:#f472b6;"></span> 實際光束 (多重光)</div>
+            <div class="legend"><span class="line-dash"></span> 虛線 (光路延伸)</div>
+        </div>
+    </div>
+
+    <!-- 控制面板 -->
+    <div id="ui-panel">
+        <div class="left-controls">
+            <div class="btn-group">
+                <button onclick="setLensType('convex')" id="btn-convex" class="active">凸透鏡</button>
+                <button onclick="setLensType('concave')" id="btn-concave">凹透鏡</button>
+            </div>
+            <!-- 光線開關 -->
+            <div class="ray-toggles">
+                <label><input type="checkbox" id="toggle-ray1" checked> 顯示平行光</label>
+                <label><input type="checkbox" id="toggle-ray2" checked> 顯示鏡心光</label>
+                <label><input type="checkbox" id="toggle-ray3" checked> 顯示焦點光</label>
+                <label style="color: #f472b6;"><input type="checkbox" id="toggle-many-rays"> 實際光束 (多重光)</label>
+            </div>
+        </div>
+        
+        <div class="slider-group">
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>物體距離 (p)</span>
+                    <span id="label-dist">15.0</span>
+                </div>
+                <input type="range" id="slider-p" min="2" max="60" step="0.1" value="15">
+            </div>
+
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>透鏡焦距 (|f|)</span>
+                    <span id="label-focal">10.0</span>
+                </div>
+                <input type="range" id="slider-f" min="3" max="25" step="0.1" value="10.0">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>物體高度 (h)</span>
+                    <span id="label-height">7.0</span>
+                </div>
+                <input type="range" id="slider-h" min="2" max="15" step="0.1" value="7">
+            </div>
+        </div>
+    </div>
+
+    <!-- 2D 畫布容器 -->
+    <div id="canvas-container">
+        <canvas id="sim-canvas"></canvas>
+    </div>
+
+<script>
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 物理狀態變數
+    let isConvex = true; 
+    let p = 15.0;        // 物距
+    let f_mag = 10.0;    // 焦距
+    let h = 7.0;         // 物高
+    
+    // 光線顯示開關
+    let showRay1 = true;
+    let showRay2 = true;
+    let showRay3 = true;
+    let showManyRays = false; // 預設不開啟多重光
+
+    // 視圖與縮放參數
+    let scale = 32;      
+    let centerX, centerY;
+    let offsetX = 0;     // 視圖平移偏移量
+
+    const colors = {
+        bg: '#0f172a',
+        grid: '#1e293b',
+        axis: '#475569',
+        lens: 'rgba(125, 211, 252, 0.4)',
+        lensOutline: '#38bdf8',
+        focal: '#38bdf8',
+        object: '#ef4444',
+        realImage: '#eab308',
+        virtualImage: '#22c55e',
+        ray1: '#00ffff', 
+        ray2: '#ff8800', 
+        ray3: '#d946ef',
+        manyRays: 'rgba(244, 114, 182, 0.65)' // 多重光顏色 (與圖例一致)
+    };
+
+    function init() {
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // 滑鼠滾輪縮放事件
+        const container = document.getElementById('canvas-container');
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomIntensity = 1.1;
+            if (e.deltaY < 0) {
+                scale *= zoomIntensity; // 放大
+            } else {
+                scale /= zoomIntensity; // 縮小
+            }
+            scale = Math.max(10, Math.min(scale, 200));
+            drawScene();
+        }, { passive: false });
+
+        // 滑鼠拖曳平移畫面事件
+        let isDragging = false;
+        let startX, startY;
+        container.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            startX = e.clientX;
+            startY = e.clientY;
+            offsetX += dx;
+            centerY += dy;
+            drawScene();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        document.getElementById('slider-p').addEventListener('input', (e) => {
+            p = parseFloat(e.target.value);
+            document.getElementById('label-dist').innerText = p.toFixed(1);
+            drawScene();
+        });
+
+        document.getElementById('slider-f').addEventListener('input', (e) => {
+            f_mag = parseFloat(e.target.value);
+            document.getElementById('label-focal').innerText = f_mag.toFixed(1);
+            drawScene();
+        });
+
+        document.getElementById('slider-h').addEventListener('input', (e) => {
+            h = parseFloat(e.target.value);
+            document.getElementById('label-height').innerText = h.toFixed(1);
+            drawScene();
+        });
+
+        document.getElementById('toggle-ray1').addEventListener('change', (e) => { showRay1 = e.target.checked; drawScene(); });
+        document.getElementById('toggle-ray2').addEventListener('change', (e) => { showRay2 = e.target.checked; drawScene(); });
+        document.getElementById('toggle-ray3').addEventListener('change', (e) => { showRay3 = e.target.checked; drawScene(); });
+        document.getElementById('toggle-many-rays').addEventListener('change', (e) => { showManyRays = e.target.checked; drawScene(); });
+
+        drawScene();
+    }
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = window.innerWidth * dpr;
+        canvas.height = window.innerHeight * dpr;
+        ctx.scale(dpr, dpr);
+        
+        const uiPanel = document.getElementById('ui-panel');
+        const uiHeight = uiPanel ? uiPanel.offsetHeight : 100;
+        
+        centerX = window.innerWidth / 2;
+        centerY = (window.innerHeight - uiHeight) / 2 + 10;
+        
+        scale = (window.innerWidth / 2) / 50;
+        
+        drawScene();
+    }
+
+    window.setLensType = function(type) {
+        isConvex = (type === 'convex');
+        document.getElementById('btn-convex').classList.remove('active');
+        document.getElementById('btn-concave').classList.remove('active');
+        document.getElementById('btn-' + type).classList.add('active');
+        drawScene();
+    };
+
+    function calculatePhysics() {
+        const f = isConvex ? f_mag : -f_mag;
+        let q, mag;
+        
+        if (Math.abs(p - f) < 0.05) {
+            q = Infinity;
+            mag = Infinity;
+        } else {
+            q = 1 / ((1 / f) - (1 / p));
+            mag = -q / p;
+        }
+        return { f, q, mag };
+    }
+
+    function updateUI(f, q, mag) {
+        document.getElementById('val-p').innerText = `${p.toFixed(1)} cm`;
+        document.getElementById('val-f').innerText = `${f.toFixed(1)} cm`;
+        
+        const statusText = document.getElementById('status-text');
+        const qVal = document.getElementById('val-q');
+        const mVal = document.getElementById('val-m');
+
+        if (q === Infinity) {
+            qVal.innerText = `無限遠 (∞)`;
+            mVal.innerText = `無限大`;
+            statusText.innerHTML = `<span style="color:#94a3b8;">無法成像 (平行光)</span>`;
+            return;
+        }
+
+        qVal.innerText = `${q.toFixed(1)} cm`;
+        mVal.innerText = `${mag.toFixed(2)}x`;
+
+        let status = "";
+        let color = "";
+        
+        if (isConvex) {
+            if (p > f) {
+                const size = Math.abs(mag) > 1 ? "放大" : (Math.abs(mag) < 1 ? "縮小" : "等大");
+                status = `倒立${size}實像`;
+                color = colors.realImage;
+            } else {
+                status = `正立放大虛像`;
+                color = colors.virtualImage;
+            }
+        } else {
+            status = `正立縮小虛像`;
+            color = colors.virtualImage;
+        }
+        statusText.innerHTML = `<span style="color:${color};">${status}</span>`;
+    }
+
+    function toScreenX(physicsX) { return centerX + offsetX + (physicsX * scale); }
+    function toScreenY(physicsY) { return centerY - (physicsY * scale); }
+
+    function drawLine(x1, y1, x2, y2, color, isDashed = false, lineWidth = 2) {
+        ctx.beginPath();
+        ctx.moveTo(toScreenX(x1), toScreenY(y1));
+        ctx.lineTo(toScreenX(x2), toScreenY(y2));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.setLineDash(isDashed ? [8, 6] : []);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function drawBackgroundAndAxis() {
+        ctx.fillStyle = colors.bg;
+        ctx.fillRect(0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+
+        const maxDist = 200; 
+        ctx.strokeStyle = colors.grid;
+        ctx.lineWidth = 1;
+        
+        for (let i = -maxDist; i <= maxDist; i += 5) {
+            drawLine(i, -maxDist, i, maxDist, colors.grid, false, 1);
+            drawLine(-maxDist, i, maxDist, i, colors.grid, false, 1);
+        }
+
+        drawLine(-maxDist, 0, maxDist, 0, colors.axis, false, 2);
+        
+        ctx.fillStyle = colors.axis;
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (let i = -maxDist; i <= maxDist; i += 5) {
+            if (i === 0) continue;
+            if (Math.abs(toScreenX(i) - centerX) < window.innerWidth) {
+                if (i % 10 === 0) {
+                    drawLine(i, 1, i, -1, colors.axis, false, 2);
+                    ctx.fillText(Math.abs(i), toScreenX(i), toScreenY(-1.5));
+                } else {
+                    drawLine(i, 0.5, i, -0.5, colors.axis, false, 2);
+                }
+            }
+        }
+    }
+
+    function drawLensShape(f) {
+        const lensHeight = 15;
+        const lensWidth = 2;
+        
+        ctx.beginPath();
+        ctx.fillStyle = colors.lens;
+        ctx.strokeStyle = colors.lensOutline;
+        ctx.lineWidth = 2;
+
+        if (isConvex) {
+            ctx.ellipse(toScreenX(0), toScreenY(0), lensWidth * scale, lensHeight * scale, 0, 0, Math.PI * 2);
+        } else {
+            const topY = toScreenY(lensHeight);
+            const botY = toScreenY(-lensHeight);
+            const leftX = toScreenX(-lensWidth);
+            const rightX = toScreenX(lensWidth);
+            const centerX_px = toScreenX(0);
+
+            ctx.moveTo(leftX, topY);
+            ctx.lineTo(rightX, topY);
+            ctx.quadraticCurveTo(centerX_px, toScreenY(0), rightX, botY);
+            ctx.lineTo(leftX, botY);
+            ctx.quadraticCurveTo(centerX_px, toScreenY(0), leftX, topY);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        drawLine(0, lensHeight + 2, 0, -lensHeight - 2, colors.axis, true, 1);
+
+        const drawFocalPoint = (x, label) => {
+            ctx.beginPath();
+            ctx.arc(toScreenX(x), toScreenY(0), 4, 0, Math.PI * 2);
+            ctx.fillStyle = colors.focal;
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(label, toScreenX(x), toScreenY(0.5));
+        };
+
+        drawFocalPoint(-f_mag, 'F');
+        drawFocalPoint(f_mag, 'F');
+        drawFocalPoint(-f_mag * 2, '2F');
+        drawFocalPoint(f_mag * 2, '2F');
+    }
+
+    function drawArrow(x, y, color, isVirtual = false) {
+        const arrowWidth = 1.0; 
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        
+        if(isVirtual) { ctx.globalAlpha = 0.5; }
+
+        ctx.beginPath();
+        ctx.moveTo(toScreenX(x), toScreenY(0));
+        ctx.lineTo(toScreenX(x), toScreenY(y));
+        ctx.stroke();
+
+        const headLen = 1.5; 
+        const direction = Math.sign(y); 
+        
+        ctx.beginPath();
+        ctx.moveTo(toScreenX(x), toScreenY(y));
+        ctx.lineTo(toScreenX(x - arrowWidth/2), toScreenY(y - direction * headLen));
+        ctx.lineTo(toScreenX(x + arrowWidth/2), toScreenY(y - direction * headLen));
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    }
+
+    function drawRays(physics) {
+        const { f, q, mag } = physics;
+        if (q === Infinity) return;
+
+        const objX = -p;
+        const objY = h;
+        const lensHeight = 12; 
+        const FAR = 150; 
+
+        // 1. 繪製實際多重光束 (線條粗細設為 2，與主光線一致)
+        if (showManyRays) {
+            const rayCount = 35;
+            for (let i = 0; i <= rayCount; i++) {
+                const lensY = -lensHeight + (2 * lensHeight * i / rayCount);
+                
+                drawLine(objX, objY, 0, lensY, colors.manyRays, false, 2);
+
+                if (q > 0) {
+                    drawLine(0, lensY, q, h * mag, colors.manyRays, false, 2);
+                } else {
+                    const imgX = q;
+                    const imgY = h * mag;
+                    const slope = (imgY - lensY) / (imgX - 0);
+                    
+                    drawLine(0, lensY, FAR, lensY + slope * FAR, colors.manyRays, false, 2);
+                    drawLine(0, lensY, imgX, imgY, colors.manyRays, true, 2);
+                }
+            }
+        }
+
+        // 2. 標準三主光線
+        if (showRay1) {
+            drawLine(objX, objY, 0, objY, colors.ray1, false, 2);
+            if (isConvex) {
+                const slope = (0 - objY) / (f_mag - 0);
+                drawLine(0, objY, FAR, objY + slope * FAR, colors.ray1, false, 2);
+                if (q < 0) {
+                    drawLine(0, objY, -FAR, objY + slope * (-FAR), colors.ray1, true, 2);
+                }
+            } else {
+                const slope = (objY - 0) / (0 - (-f_mag));
+                drawLine(0, objY, FAR, objY + slope * FAR, colors.ray1, false, 2);
+                drawLine(0, objY, -FAR, objY + slope * (-FAR), colors.ray1, true, 2);
+            }
+        }
+
+        if (showRay2) {
+            const slope2 = (0 - objY) / (0 - objX);
+            drawLine(objX, objY, 0, 0, colors.ray2, false, 2);
+            drawLine(0, 0, FAR, slope2 * FAR, colors.ray2, false, 2);
+            if (q < 0) {
+                drawLine(0, 0, -FAR, slope2 * (-FAR), colors.ray2, true, 2);
+            }
+        }
+
+        if (showRay3) {
+            if (isConvex) {
+                if (Math.abs(p - f_mag) > 0.05) {
+                    const lensY3 = (h * f_mag) / (f_mag - p);
+                    drawLine(objX, objY, 0, lensY3, colors.ray3, false, 2);
+                    if (p < f_mag) {
+                        drawLine(-f_mag, 0, objX, objY, colors.ray3, true, 2);
+                    }
+                    drawLine(0, lensY3, FAR, lensY3, colors.ray3, false, 2);
+                    if (q < 0) {
+                        drawLine(0, lensY3, -FAR, lensY3, colors.ray3, true, 2);
+                    }
+                }
+            } else {
+                const lensY3 = (h * f_mag) / (f_mag + p);
+                drawLine(objX, objY, 0, lensY3, colors.ray3, false, 2);
+                drawLine(0, lensY3, f_mag, 0, colors.ray3, true, 2);
+                drawLine(0, lensY3, FAR, lensY3, colors.ray3, false, 2);
+                drawLine(0, lensY3, -FAR, lensY3, colors.ray3, true, 2);
+            }
+        }
+    }
+
+    function drawScene() {
+        drawBackgroundAndAxis();
+        const physics = calculatePhysics();
+        updateUI(physics.f, physics.q, physics.mag);
+        drawLensShape(physics.f);
+        drawArrow(-p, h, colors.object);
+        drawRays(physics);
+        if (physics.q !== Infinity) {
+            const isVirtual = physics.q < 0;
+            const imgColor = isVirtual ? colors.virtualImage : colors.realImage;
+            drawArrow(physics.q, h * physics.mag, imgColor, isVirtual);
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>
