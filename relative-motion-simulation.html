@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>相對運動模擬</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f0f4f8;
+            color: #334155;
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            cursor: default;
+        }
+        .slider-container-compact {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem; /* 8px */
+            padding: 4px;
+        }
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #d1d5db;
+            outline: none;
+            border-radius: 3px;
+            transition: opacity 0.2s;
+        }
+        .slider:disabled {
+            opacity: 0.5;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .btn-observer {
+             background-color: #6b7280; /* gray-500 */
+             color: white;
+        }
+        .btn-observer.active {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4);
+            transform: translateY(-1px);
+        }
+        .person-A { color: #ef4444; } /* red-500 */
+        .person-B { color: #22c55e; } /* green-500 */
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-xl max-w-3xl w-full">
+        <h1 class="text-3xl font-bold text-center mb-6">相對運動模擬</h1>
+
+        <!-- Canvas Area -->
+        <div class="relative w-full aspect-[2/1] mb-6">
+            <canvas id="motionCanvas" class="w-full h-full"></canvas>
+            <div class="absolute top-2 left-4 flex flex-col items-start px-2 py-1 bg-white/70 backdrop-blur-sm rounded-md text-sm font-bold space-y-1">
+                <span class="text-xs text-gray-500 font-semibold">外界觀察者 (慣性參考系)</span>
+                <div class="flex items-center w-full">
+                    <span id="posA" class="w-24">X<sub class="text-xs">A</sub>: 0</span>
+                    <span id="velA_display" class="w-24">V<sub class="text-xs">A</sub>: 0 m/s</span>
+                </div>
+                <div class="flex items-center w-full">
+                    <span id="posB" class="w-24">X<sub class="text-xs">B</sub>: 10</span>
+                    <span id="velB_display" class="w-24">V<sub class="text-xs">B</sub>: 0 m/s</span>
+                </div>
+            </div>
+            <div id="relativePositionDisplay" class="absolute bottom-2 left-4 flex flex-col items-start px-2 py-1 bg-white/70 backdrop-blur-sm rounded-md text-sm font-bold space-y-1 hidden">
+                <span id="relativeObserverTitle" class="text-xs text-gray-500 font-semibold"></span>
+                <div class="flex items-center w-full">
+                    <span id="relativePosA" class="w-24"></span>
+                    <span id="relativeVelA" class="w-24"></span>
+                </div>
+                <div class="flex items-center w-full">
+                    <span id="relativePosB" class="w-24"></span>
+                    <span id="relativeVelB" class="w-24"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Area -->
+        <div class="flex flex-col space-y-4">
+            <!-- Sliders in two columns -->
+            <div class="flex flex-col md:flex-row md:space-x-4 space-y-4 md:space-y-0">
+                <!-- Left Column for A -->
+                <div class="w-full md:w-1/2 flex flex-col space-y-2 p-3 bg-red-50 rounded-lg border border-red-200">
+                    <h3 class="text-center font-bold person-A">設定 A</h3>
+                    <div class="slider-container-compact">
+                        <span class="text-sm font-medium w-12">位置</span>
+                        <input type="range" id="positionA_slider" class="slider" min="-10" max="10" value="0" step="1">
+                        <span id="posA_slider_label" class="text-sm font-semibold w-16 text-right">0 m</span>
+                    </div>
+                    <div class="slider-container-compact">
+                        <span class="text-sm font-medium w-12">速度</span>
+                        <input type="range" id="velocityA" class="slider" min="-10" max="10" value="0" step="1">
+                        <span id="velA_label" class="text-sm font-semibold w-16 text-right">0 m/s</span>
+                    </div>
+                </div>
+                <!-- Right Column for B -->
+                <div class="w-full md:w-1/2 flex flex-col space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <h3 class="text-center font-bold person-B">設定 B</h3>
+                    <div class="slider-container-compact">
+                        <span class="text-sm font-medium w-12">位置</span>
+                        <input type="range" id="positionB_slider" class="slider" min="-10" max="20" value="10" step="1">
+                        <span id="posB_slider_label" class="text-sm font-semibold w-16 text-right">10 m</span>
+                    </div>
+                    <div class="slider-container-compact">
+                        <span class="text-sm font-medium w-12">速度</span>
+                        <input type="range" id="velocityB" class="slider" min="-10" max="10" value="0" step="1">
+                        <span id="velB_label" class="text-sm font-semibold w-16 text-right">0 m/s</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Observer Buttons -->
+            <div class="flex flex-row space-x-2 pt-2">
+                <button id="btnInertial" class="btn btn-observer flex-1 py-2 px-3 rounded-lg text-sm">慣性系</button>
+                <button id="btnObserveA" class="btn btn-observer flex-1 py-2 px-3 rounded-lg text-sm">以A為觀察者</button>
+                <button id="btnObserveB" class="btn btn-observer flex-1 py-2 px-3 rounded-lg text-sm">以B為觀察者</button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-row space-x-2">
+                <button id="mainBtn" class="btn flex-1 bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-blue-600">移動1秒</button>
+                <button id="resetBtn" class="btn flex-1 bg-red-500 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-red-600">重設</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const canvas = document.getElementById('motionCanvas');
+        const ctx = canvas.getContext('2d');
+        const positionASlider = document.getElementById('positionA_slider');
+        const positionBSlider = document.getElementById('positionB_slider');
+        const posASliderLabel = document.getElementById('posA_slider_label');
+        const posBSliderLabel = document.getElementById('posB_slider_label');
+        const velocityASlider = document.getElementById('velocityA');
+        const velocityBSlider = document.getElementById('velocityB');
+        const velALabel = document.getElementById('velA_label');
+        const velBLabel = document.getElementById('velB_label');
+        const mainBtn = document.getElementById('mainBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const posALabel = document.getElementById('posA');
+        const posBLabel = document.getElementById('posB');
+        const velADisplay = document.getElementById('velA_display');
+        const velBDisplay = document.getElementById('velB_display');
+        const relativePositionDisplay = document.getElementById('relativePositionDisplay');
+        const relativeObserverTitle = document.getElementById('relativeObserverTitle');
+        const relativePosALabel = document.getElementById('relativePosA');
+        const relativePosBLabel = document.getElementById('relativePosB');
+        const relativeVelADisplay = document.getElementById('relativeVelA');
+        const relativeVelBDisplay = document.getElementById('relativeVelB');
+        const btnInertial = document.getElementById('btnInertial');
+        const btnObserveA = document.getElementById('btnObserveA');
+        const btnObserveB = document.getElementById('btnObserveB');
+        const observerBtns = [btnInertial, btnObserveA, btnObserveB];
+
+        // Simulation state
+        let positionA = parseFloat(positionASlider.value);
+        let positionB = parseFloat(positionBSlider.value);
+        let velocityA = 0;
+        let velocityB = 0;
+        let scaleFactor = 20;
+        let history = null;
+        let isAnimating = false;
+        let animationStartTime;
+        let startPositionA, startPositionB;
+        let endPositionA, endPositionB;
+        const animationDuration = 1000;
+        let isMoved = false;
+        let observerMode = 'inertial'; // 'inertial', 'A', or 'B'
+        let observerAnchorPosition = null;
+
+        function drawVector(x, y, vx, color, textOffsetDirection) {
+            if (vx === 0) return;
+            const vectorLength = vx * scaleFactor;
+            const headLength = 10;
+            const headAngle = Math.PI / 6;
+            const textOffset = 20;
+
+            ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.moveTo(x, y); ctx.lineTo(x + vectorLength, y); ctx.stroke();
+            
+            const angle = vx > 0 ? 0 : Math.PI;
+            ctx.beginPath(); ctx.fillStyle = color; ctx.moveTo(x + vectorLength, y);
+            ctx.lineTo(x + vectorLength - headLength * Math.cos(angle + headAngle), y - headLength * Math.sin(angle + headAngle));
+            ctx.lineTo(x + vectorLength - headLength * Math.cos(angle - headAngle), y - headLength * Math.sin(angle - headAngle));
+            ctx.closePath(); ctx.fill();
+
+            ctx.fillStyle = color; ctx.font = 'bold 12px Noto Sans TC'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+            const textX = x + vectorLength / 2;
+            const textY = textOffsetDirection === 'up' ? y - textOffset : y + textOffset + 10;
+            ctx.fillText(`${Math.round(vx)} m/s`, textX, textY);
+        }
+        
+        function drawRelativeAxis(observerX, observerY, textIsUp) {
+            ctx.beginPath(); ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.moveTo(0, observerY); ctx.lineTo(canvas.width, observerY); ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#cbd5e1';
+            ctx.textBaseline = textIsUp ? 'bottom' : 'top';
+            for (let i = -20; i <= 20; i++) {
+                const x = observerX + i * scaleFactor;
+                ctx.beginPath(); ctx.moveTo(x, observerY - 5); ctx.lineTo(x, observerY + 5); ctx.stroke();
+                if (i !== 0) {
+                     const textY = textIsUp ? observerY - 10 : observerY + 10;
+                     ctx.fillText(i, x, textY);
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const axisY = canvas.height / 2;
+            const centerCoordinate = 3;
+            const canvasCenterX = canvas.width / 2;
+
+            let screenOffsetX = 0;
+            if (observerMode === 'A') {
+                screenOffsetX = -(positionA - observerAnchorPosition) * scaleFactor;
+            } else if (observerMode === 'B') {
+                screenOffsetX = -(positionB - observerAnchorPosition) * scaleFactor;
+            }
+
+            ctx.beginPath(); ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2; ctx.moveTo(0, axisY); ctx.lineTo(canvas.width, axisY); ctx.stroke();
+
+            ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = '#64748b';
+            for (let i = -15; i <= 20; i++) {
+                const x = canvasCenterX + (i - centerCoordinate) * scaleFactor + screenOffsetX;
+                ctx.beginPath(); ctx.moveTo(x, axisY - 5); ctx.lineTo(x, axisY + 5); ctx.stroke();
+                ctx.fillText(i, x, axisY + 10);
+            }
+            
+            let displayVA = velocityA, displayVB = velocityB;
+            if (observerMode === 'A') { displayVA = 0; displayVB = velocityB - velocityA; } 
+            else if (observerMode === 'B') { displayVA = velocityA - velocityB; displayVB = 0; }
+
+            const xA = canvasCenterX + (positionA - centerCoordinate) * scaleFactor + screenOffsetX;
+            const yA = axisY - 20;
+            ctx.beginPath(); ctx.fillStyle = '#ef4444'; ctx.arc(xA, yA, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.font = 'bold 16px Noto Sans TC'; ctx.fillText('A', xA, yA - 30);
+            drawVector(xA, yA, displayVA, '#ef4444', 'up');
+
+            const xB = canvasCenterX + (positionB - centerCoordinate) * scaleFactor + screenOffsetX;
+            const yB = axisY + 30;
+            ctx.beginPath(); ctx.fillStyle = '#22c55e'; ctx.arc(xB, yB, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.font = 'bold 16px Noto Sans TC'; ctx.fillText('B', xB, yB + 30);
+            drawVector(xB, yB, displayVB, '#22c55e', 'down');
+            
+            const distance = Math.abs(positionB - positionA);
+            const indicatorY = axisY - 80;
+            ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6'; ctx.lineWidth = 2;
+
+            ctx.save(); ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(xA, axisY); ctx.lineTo(xA, indicatorY); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(xB, axisY); ctx.lineTo(xB, indicatorY); ctx.stroke();
+            ctx.restore();
+
+            ctx.beginPath(); ctx.moveTo(xA, indicatorY); ctx.lineTo(xB, indicatorY); ctx.stroke();
+            const headLength = 8;
+            ctx.beginPath(); const dirB = Math.sign(xB - xA); ctx.moveTo(xB, indicatorY); ctx.lineTo(xB - dirB * headLength, indicatorY - 5); ctx.lineTo(xB - dirB * headLength, indicatorY + 5); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); const dirA = Math.sign(xA - xB); ctx.moveTo(xA, indicatorY); ctx.lineTo(xA - dirA * headLength, indicatorY - 5); ctx.lineTo(xA - dirA * headLength, indicatorY + 5); ctx.closePath(); ctx.fill();
+
+            ctx.font = 'bold 20px Noto Sans TC'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+            const midX = (xA + xB) / 2; ctx.fillText(distance.toFixed(0), midX, indicatorY - 8);
+
+            if (observerMode === 'A') { drawRelativeAxis(xA, yA, true); } 
+            else if (observerMode === 'B') { drawRelativeAxis(xB, yB, false); }
+
+            posALabel.innerHTML = `X<sub class="text-xs">A</sub>: ${positionA.toFixed(1)}`;
+            velADisplay.innerHTML = `V<sub class="text-xs">A</sub>: ${velocityA} m/s`;
+            posBLabel.innerHTML = `X<sub class="text-xs">B</sub>: ${positionB.toFixed(1)}`;
+            velBDisplay.innerHTML = `V<sub class="text-xs">B</sub>: ${velocityB} m/s`;
+
+            if (observerMode === 'A') {
+                relativeObserverTitle.textContent = '從A的視角 (A為參考系)';
+                relativePosALabel.innerHTML = `X<sub class="text-xs">AA</sub>: 0`;
+                relativeVelADisplay.innerHTML = `V<sub class="text-xs">AA</sub>: 0 m/s`;
+                relativePosBLabel.innerHTML = `X<sub class="text-xs">BA</sub>: ${(positionB - positionA).toFixed(1)}`;
+                relativeVelBDisplay.innerHTML = `V<sub class="text-xs">BA</sub>: ${velocityB - velocityA} m/s`;
+            } else if (observerMode === 'B') {
+                relativeObserverTitle.textContent = '從B的視角 (B為參考系)';
+                relativePosALabel.innerHTML = `X<sub class="text-xs">AB</sub>: ${(positionA - positionB).toFixed(1)}`;
+                relativeVelADisplay.innerHTML = `V<sub class="text-xs">AB</sub>: ${velocityA - velocityB} m/s`;
+                relativePosBLabel.innerHTML = `X<sub class="text-xs">BB</sub>: 0`;
+                relativeVelBDisplay.innerHTML = `V<sub class="text-xs">BB</sub>: 0 m/s`;
+            }
+        }
+        
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            scaleFactor = canvas.width / 25;
+            draw();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function animate(timestamp) {
+            if (!animationStartTime) animationStartTime = timestamp;
+            const progress = Math.min((timestamp - animationStartTime) / animationDuration, 1);
+            positionA = startPositionA + (endPositionA - startPositionA) * progress;
+            positionB = startPositionB + (endPositionB - startPositionB) * progress;
+            draw();
+
+            if (progress < 1) { requestAnimationFrame(animate); } 
+            else { isAnimating = false; positionA = endPositionA; positionB = endPositionB; draw(); }
+        }
+        
+        function setObserverMode(mode) {
+            if (isAnimating) return;
+            observerMode = mode;
+
+            observerBtns.forEach(btn => btn.classList.remove('active'));
+            if (mode === 'inertial') { btnInertial.classList.add('active'); }
+            else if (mode === 'A') { btnObserveA.classList.add('active'); }
+            else if (mode === 'B') { btnObserveB.classList.add('active'); }
+
+            if (mode === 'inertial') {
+                relativePositionDisplay.classList.add('hidden');
+                observerAnchorPosition = null;
+            } else {
+                relativePositionDisplay.classList.remove('hidden');
+                observerAnchorPosition = (mode === 'A') ? positionA : positionB;
+            }
+            draw();
+        }
+
+        function resetSimulation() {
+            if (isAnimating) return;
+            isMoved = false; history = null;
+            
+            positionA = parseFloat(positionASlider.value);
+            positionB = parseFloat(positionBSlider.value);
+            velocityA = 0; velocityB = 0;
+            velocityASlider.value = 0; velocityBSlider.value = 0;
+            velALabel.textContent = '0 m/s'; velBLabel.textContent = '0 m/s';
+
+            positionASlider.disabled = false; positionBSlider.disabled = false;
+
+            mainBtn.textContent = '移動1秒';
+            mainBtn.classList.replace('bg-yellow-500', 'bg-blue-500');
+            
+            setObserverMode('inertial');
+        }
+
+        positionASlider.addEventListener('input', (e) => {
+            positionA = parseFloat(e.target.value); posASliderLabel.textContent = `${positionA} m`; if (!isAnimating) draw();
+        });
+        positionBSlider.addEventListener('input', (e) => {
+            positionB = parseFloat(e.target.value); posBSliderLabel.textContent = `${positionB} m`; if (!isAnimating) draw();
+        });
+        velocityASlider.addEventListener('input', (e) => {
+            velocityA = parseFloat(e.target.value); velALabel.textContent = `${velocityA} m/s`; if (!isAnimating) draw();
+        });
+        velocityBSlider.addEventListener('input', (e) => {
+            velocityB = parseFloat(e.target.value); velBLabel.textContent = `${velocityB} m/s`; if (!isAnimating) draw();
+        });
+        
+        btnInertial.addEventListener('click', () => setObserverMode('inertial'));
+        btnObserveA.addEventListener('click', () => setObserverMode('A'));
+        btnObserveB.addEventListener('click', () => setObserverMode('B'));
+
+        mainBtn.addEventListener('click', () => {
+            if (isAnimating) return;
+            if (!isMoved) { // Move
+                isMoved = true; isAnimating = true;
+                positionASlider.disabled = true; positionBSlider.disabled = true;
+                mainBtn.textContent = '返回'; mainBtn.classList.replace('bg-blue-500', 'bg-yellow-500');
+                history = { posA: positionA, posB: positionB };
+                startPositionA = positionA; startPositionB = positionB;
+                endPositionA = startPositionA + velocityA; endPositionB = startPositionB + velocityB;
+                animationStartTime = null; requestAnimationFrame(animate);
+            } else { // Return
+                isMoved = false; isAnimating = true;
+                positionASlider.disabled = false; positionBSlider.disabled = false;
+                mainBtn.textContent = '移動1秒'; mainBtn.classList.replace('bg-yellow-500', 'bg-blue-500');
+                startPositionA = positionA; startPositionB = positionB;
+                endPositionA = history.posA; endPositionB = history.posB;
+                history = null; animationStartTime = null; requestAnimationFrame(animate);
+            }
+        });
+
+        resetBtn.addEventListener('click', resetSimulation);
+        
+        window.onload = () => {
+            resizeCanvas();
+            setObserverMode('inertial'); // Set initial button state
+        };
+    </script>
+</body>
+</html>

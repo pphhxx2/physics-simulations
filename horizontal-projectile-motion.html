@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水平拋射動畫</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f8ff; /* AliceBlue */
+            font-family: 'Inter', sans-serif;
+            color: #333;
+        }
+        .container {
+            position: relative; /* For positioning the time display */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px; /* Reduced gap */
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        #animationCanvas {
+            border: 1px solid #ddd;
+            background-color: #fdfdfd;
+            border-radius: 8px;
+        }
+        #timeDisplay {
+            position: absolute;
+            top: 30px;
+            right: 60px; /* 增加了右邊的距離，避免擋到x軸標示 */
+            background-color: rgba(255, 255, 255, 0.85);
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            pointer-events: none; /* Make it non-interactive */
+        }
+        .controls, .trajectory-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 5px 10px; /* Reduced padding */
+            width: 100%;
+            max-width: 800px;
+            box-sizing: border-box;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        label {
+            font-weight: 500;
+        }
+        input[type="range"] {
+            width: 150px;
+            cursor: pointer;
+        }
+        input[type="checkbox"] {
+            cursor: pointer;
+            transform: scale(1.2);
+            margin-right: -5px;
+        }
+        #velocityValue {
+            font-weight: bold;
+            color: #007bff;
+            min-width: 40px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            background-color: #6c757d; /* Gray */
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color: 0.3s ease, transform 0.1s ease;
+        }
+        button:hover {
+            background-color: #5a6268;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #a0c3e6;
+            cursor: not-allowed;
+        }
+        #startButton {
+            background-color: #007bff; /* Blue */
+        }
+        #startButton:hover {
+            background-color: #0056b3;
+        }
+        button.active {
+            background-color: #28a745; /* Green */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        button.active:hover {
+             background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="animationCanvas" width="800" height="600"></canvas>
+        <div id="timeDisplay">時間: 0.00 s</div>
+        <div class="controls">
+            <div class="control-group">
+                <label for="velocitySlider">初速度:</label>
+                <input type="range" id="velocitySlider" min="1" max="15" value="5" step="1">
+                <span id="velocityValue">5.0 m/s</span>
+            </div>
+            <button id="startButton">發射</button>
+            <button id="toggleHorizontalBtn">顯示水平分量</button>
+            <button id="toggleVerticalBtn">顯示鉛直分量</button>
+            <button id="slowMotionBtn">慢動作</button>
+        </div>
+        <div class="trajectory-controls">
+             <div class="control-group">
+                <input type="checkbox" id="showMainTrajectoryCheckbox" checked>
+                <label for="showMainTrajectoryCheckbox">顯示原軌跡</label>
+            </div>
+            <div class="control-group">
+                <input type="checkbox" id="showHorizontalTrajectoryCheckbox">
+                <label for="showHorizontalTrajectoryCheckbox">顯示水平軌跡</label>
+            </div>
+            <div class="control-group">
+                <input type="checkbox" id="showVerticalTrajectoryCheckbox">
+                <label for="showVerticalTrajectoryCheckbox">顯示鉛直軌跡</label>
+            </div>
+             <div class="control-group">
+                <input type="checkbox" id="pauseAtOneSecCheckbox">
+                <label for="pauseAtOneSecCheckbox">在1秒時暫停</label>
+            </div>
+            <div class="control-group">
+                <input type="checkbox" id="markIntervalCheckbox">
+                <label for="markIntervalCheckbox">每隔0.1秒標記位置</label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('animationCanvas');
+        const ctx = canvas.getContext('2d');
+        const velocitySlider = document.getElementById('velocitySlider');
+        const velocityValueSpan = document.getElementById('velocityValue');
+        const startButton = document.getElementById('startButton');
+        const toggleHorizontalBtn = document.getElementById('toggleHorizontalBtn');
+        const toggleVerticalBtn = document.getElementById('toggleVerticalBtn');
+        const slowMotionBtn = document.getElementById('slowMotionBtn');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const pauseAtOneSecCheckbox = document.getElementById('pauseAtOneSecCheckbox');
+        const markIntervalCheckbox = document.getElementById('markIntervalCheckbox');
+        const showMainTrajectoryCheckbox = document.getElementById('showMainTrajectoryCheckbox');
+        const showHorizontalTrajectoryCheckbox = document.getElementById('showHorizontalTrajectoryCheckbox');
+        const showVerticalTrajectoryCheckbox = document.getElementById('showVerticalTrajectoryCheckbox');
+
+        const initialX = 50, initialY = 50;
+        let ball = {
+            pixelX: initialX, pixelY: initialY, radius: 15,
+            color: '#dc3545',
+            vx: parseFloat(velocitySlider.value), // 速度單位: m/s
+            vy: 0, // 速度單位: m/s
+        };
+
+        const GRAVITY_ACCELERATION = 9.8; // 重力加速度 m/s^2
+        const PPM = 25; // 像素/公尺 的比例尺 (調整以容納更長的y軸)
+        const vectorScale = 10;
+        let isAnimating = false;
+        let showHorizontal = false;
+        let showVertical = false;
+        let isSlowMotion = false;
+        let isPaused = false;
+        let simulationTime = 0;
+        let trajectoryPoints = [];
+        let timeMarkedPoints = [];
+        let horizontalMarkedPoints = [];
+        let verticalMarkedPoints = [];
+        let lastMarkTime = 0;
+
+        // --- Event Listeners ---
+        velocitySlider.addEventListener('input', (e) => {
+            if (isAnimating) return;
+            const newVx = parseFloat(e.target.value);
+            ball.vx = newVx;
+            velocityValueSpan.textContent = `${newVx.toFixed(1)} m/s`;
+        });
+
+        startButton.addEventListener('click', () => {
+            if (!isAnimating) {
+                isAnimating = true; isPaused = false; simulationTime = 0; lastMarkTime = 0;
+                ball.pixelX = initialX; ball.pixelY = initialY; ball.vy = 0;
+                ball.vx = parseFloat(velocitySlider.value);
+                trajectoryPoints = [{ x: ball.pixelX, y: ball.pixelY }];
+                timeMarkedPoints = [];
+                horizontalMarkedPoints = [];
+                verticalMarkedPoints = [];
+                velocitySlider.disabled = true;
+                timeDisplay.textContent = `時間: 0.00 s`;
+                startButton.textContent = '暫停';
+            } else {
+                isPaused = !isPaused;
+                startButton.textContent = isPaused ? '繼續' : '暫停';
+            }
+        });
+
+        toggleHorizontalBtn.addEventListener('click', () => {
+            showHorizontal = !showHorizontal;
+            toggleHorizontalBtn.classList.toggle('active');
+        });
+
+        toggleVerticalBtn.addEventListener('click', () => {
+            showVertical = !showVertical;
+            toggleVerticalBtn.classList.toggle('active');
+        });
+        
+        slowMotionBtn.addEventListener('click', () => {
+            isSlowMotion = !isSlowMotion;
+            slowMotionBtn.classList.toggle('active');
+        });
+
+        // --- Drawing Functions ---
+        function drawAxes() {
+            ctx.save();
+            ctx.strokeStyle = '#adb5bd'; // Gray color for axes
+            ctx.fillStyle = '#6c757d';
+            ctx.lineWidth = 1.5;
+
+            // X軸
+            ctx.beginPath();
+            ctx.moveTo(initialX, initialY);
+            ctx.lineTo(canvas.width - 10, initialY);
+            ctx.stroke();
+            ctx.font = '16px Inter';
+            ctx.fillText('x', canvas.width - 25, initialY - 15);
+
+            // Y軸
+            ctx.beginPath();
+            ctx.moveTo(initialX, initialY);
+            ctx.lineTo(initialX, canvas.height - 10);
+            ctx.stroke();
+            ctx.fillText('y', initialX + 15, canvas.height - 15);
+
+            // X軸刻度
+            ctx.font = '12px Inter';
+            for (let i = 1; (initialX + i * PPM) < canvas.width; i++) {
+                const x = initialX + i * PPM;
+                ctx.beginPath();
+                ctx.moveTo(x, initialY - 5);
+                ctx.lineTo(x, initialY + 5);
+                ctx.stroke();
+                ctx.fillText(i, x - (i < 10 ? 3 : 7), initialY + 20); // 移到軸線下方
+            }
+
+            // Y軸刻度
+            for (let i = 1; (initialY + i * PPM) < canvas.height; i++) {
+                const y = initialY + i * PPM;
+                ctx.beginPath();
+                ctx.moveTo(initialX - 5, y);
+                ctx.lineTo(initialX + 5, y);
+                ctx.stroke();
+                ctx.fillText(i, initialX - 25, y + 4); // 移到軸線左方
+            }
+            ctx.restore();
+        }
+
+        function drawPlatform() {
+            ctx.fillStyle = '#6c757d';
+            ctx.fillRect(0, initialY + ball.radius, initialX + ball.radius, 10);
+        }
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(ball.pixelX, ball.pixelY, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = ball.color;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawTrajectory() {
+            if (trajectoryPoints.length < 2) return;
+            ctx.beginPath();
+            ctx.moveTo(trajectoryPoints[0].x, trajectoryPoints[0].y);
+            trajectoryPoints.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.strokeStyle = 'rgba(0, 123, 255, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        function drawVector(startX, startY, vx, vy, color, label) {
+            const endX = startX + vx * vectorScale;
+            const endY = startY + vy * vectorScale;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            const headlen = 10;
+            const angle = Math.atan2(endY - startY, endX - startX);
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.lineTo(endX, endY);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.fillStyle = color;
+            ctx.font = 'bold 14px Inter';
+            ctx.fillText(label, endX + 10, endY + 5);
+            ctx.restore();
+        }
+
+        function drawProjectedTrajectories() {
+            if (!isAnimating || trajectoryPoints.length < 2) return;
+
+            ctx.save();
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+
+            if (showHorizontalTrajectoryCheckbox.checked) {
+                ctx.beginPath();
+                ctx.moveTo(trajectoryPoints[0].x, trajectoryPoints[0].y);
+                ctx.lineTo(ball.pixelX, initialY);
+                ctx.strokeStyle = 'rgba(40, 167, 69, 0.7)';
+                ctx.stroke();
+            }
+
+            if (showVerticalTrajectoryCheckbox.checked) {
+                ctx.beginPath();
+                ctx.moveTo(trajectoryPoints[0].x, trajectoryPoints[0].y);
+                ctx.lineTo(initialX, ball.pixelY);
+                ctx.strokeStyle = 'rgba(156, 39, 176, 0.7)';
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        
+        function drawGhostBallsAndGuides() {
+            if (!isAnimating) return;
+
+            const ghostColor = 'rgba(220, 53, 69, 0.5)';
+            ctx.save();
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(108, 117, 125, 0.7)';
+
+            if (showHorizontalTrajectoryCheckbox.checked) {
+                // 繪製水平投影球
+                ctx.beginPath();
+                ctx.arc(ball.pixelX, initialY, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ghostColor;
+                ctx.fill();
+                // 只有在主軌跡也顯示時，才畫水平導引線
+                if (showMainTrajectoryCheckbox.checked) {
+                    ctx.beginPath();
+                    ctx.moveTo(ball.pixelX, ball.pixelY);
+                    ctx.lineTo(ball.pixelX, initialY);
+                    ctx.stroke();
+                }
+            }
+
+            if (showVerticalTrajectoryCheckbox.checked) {
+                // 繪製鉛直投影球
+                ctx.beginPath();
+                ctx.arc(initialX, ball.pixelY, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ghostColor;
+                ctx.fill();
+                // 只有在主軌跡也顯示時，才畫鉛直導引線
+                if (showMainTrajectoryCheckbox.checked) {
+                    ctx.beginPath();
+                    ctx.moveTo(ball.pixelX, ball.pixelY);
+                    ctx.lineTo(initialX, ball.pixelY);
+                    ctx.stroke();
+                }
+            }
+            
+            ctx.restore();
+        }
+
+        function drawTimeMarks() {
+            // 主軌跡標記
+            if (showMainTrajectoryCheckbox.checked) {
+                ctx.fillStyle = '#212529';
+                timeMarkedPoints.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+
+            // 水平軌跡標記
+            if (showHorizontalTrajectoryCheckbox.checked) {
+                ctx.fillStyle = 'rgba(40, 167, 69, 0.9)';
+                horizontalMarkedPoints.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+
+            // 鉛直軌跡標記
+            if (showVerticalTrajectoryCheckbox.checked) {
+                ctx.fillStyle = 'rgba(156, 39, 176, 0.9)';
+                verticalMarkedPoints.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+
+        function drawWatermark() {
+            ctx.save();
+            ctx.font = '16px Inter';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; // Faint gray
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('平鎮高中', canvas.width - 20, canvas.height - 15);
+            ctx.restore();
+        }
+
+        // --- Main Animation Loop ---
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawAxes();
+            drawPlatform();
+
+            if (isAnimating && !isPaused) {
+                const speedMultiplier = isSlowMotion ? 0.2 : 1.0;
+                const dt = (1 / 60) * speedMultiplier;
+
+                const prevSimTime = simulationTime;
+                simulationTime += dt;
+                timeDisplay.textContent = `時間: ${simulationTime.toFixed(2)} s`;
+
+                ball.vy += GRAVITY_ACCELERATION * dt;
+                ball.pixelX += (ball.vx * PPM) * dt;
+                ball.pixelY += (ball.vy * PPM) * dt;
+                trajectoryPoints.push({ x: ball.pixelX, y: ball.pixelY });
+
+                if (markIntervalCheckbox.checked && simulationTime >= lastMarkTime + 0.1) {
+                    timeMarkedPoints.push({ x: ball.pixelX, y: ball.pixelY });
+                    horizontalMarkedPoints.push({ x: ball.pixelX, y: initialY });
+                    verticalMarkedPoints.push({ x: initialX, y: ball.pixelY });
+                    lastMarkTime += 0.1;
+                }
+
+                if (pauseAtOneSecCheckbox.checked && simulationTime >= 1.0 && prevSimTime < 1.0) {
+                    isPaused = true;
+                    startButton.textContent = '繼續';
+                }
+
+                if (ball.pixelY + ball.radius > canvas.height || ball.pixelX - ball.radius > canvas.width) {
+                    isAnimating = false;
+                    isPaused = false;
+                    velocitySlider.disabled = false;
+                    startButton.textContent = '發射';
+                }
+            }
+            
+            if (showMainTrajectoryCheckbox.checked) drawTrajectory();
+            drawProjectedTrajectories();
+            drawGhostBallsAndGuides();
+            if (markIntervalCheckbox.checked) drawTimeMarks();
+            
+            if (isAnimating) {
+                // 主球的向量
+                if (showMainTrajectoryCheckbox.checked) {
+                    const totalVelocity = Math.sqrt(ball.vx**2 + ball.vy**2);
+                    drawVector(ball.pixelX, ball.pixelY, ball.vx, ball.vy, '#ff9800', `${totalVelocity.toFixed(1)} m/s`);
+                    if (showHorizontal) {
+                        drawVector(ball.pixelX, ball.pixelY, ball.vx, 0, '#28a745', `${ball.vx.toFixed(1)} m/s`);
+                    }
+                    if (showVertical) {
+                        drawVector(ball.pixelX, ball.pixelY, 0, ball.vy, '#9c27b0', `${ball.vy.toFixed(1)} m/s`);
+                    }
+                }
+
+                // 投影球的向量
+                if (showHorizontalTrajectoryCheckbox.checked && showHorizontal) {
+                    drawVector(ball.pixelX, initialY, ball.vx, 0, '#28a745', `${ball.vx.toFixed(1)} m/s`);
+                }
+                if (showVerticalTrajectoryCheckbox.checked && showVertical) {
+                    drawVector(initialX, ball.pixelY, 0, ball.vy, '#9c27b0', `${ball.vy.toFixed(1)} m/s`);
+                }
+            }
+
+            // 只有在勾選顯示原軌跡時，才畫出主球
+            if (showMainTrajectoryCheckbox.checked) {
+                drawBall();
+            }
+            
+            drawWatermark();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Initial Setup ---
+        velocityValueSpan.textContent = `${parseFloat(velocitySlider.value).toFixed(1)} m/s`;
+        gameLoop();
+    </script>
+</body>
+</html>

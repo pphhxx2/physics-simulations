@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡諧運動 (SHM) 模擬與圖表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+        }
+        canvas {
+            touch-action: none;
+        }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        /* Custom disabled style for range */
+        input[type=range]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .graph-container {
+            transition: flex-grow 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 p-3 shadow-sm z-10 shrink-0">
+        <div class="max-w-7xl mx-auto flex flex-col xl:flex-row justify-between items-center gap-4">
+            <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2 whitespace-nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                簡諧運動模擬器
+            </h1>
+            
+            <!-- Controls Wrapper -->
+            <div class="flex flex-wrap gap-4 items-center justify-center text-sm">
+                
+                <!-- Orientation Toggle -->
+                <button id="orientBtn" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 transition active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span id="orientLabel">轉為水平</span>
+                </button>
+
+                <!-- Display Toggles -->
+                <div class="hidden md:flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">顯示</span>
+                    <label class="flex items-center gap-1 cursor-pointer select-none">
+                        <input type="checkbox" id="checkX" checked class="accent-blue-600 w-3.5 h-3.5">
+                        <span class="font-bold text-blue-600 text-xs">x</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none">
+                        <input type="checkbox" id="checkV" checked class="accent-green-600 w-3.5 h-3.5">
+                        <span class="font-bold text-green-600 text-xs">v</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none">
+                        <input type="checkbox" id="checkA" checked class="accent-red-600 w-3.5 h-3.5">
+                        <span class="font-bold text-red-600 text-xs">a</span>
+                    </label>
+                </div>
+
+                <!-- Physics Parameters -->
+                <div class="flex items-center gap-3 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <div class="flex flex-col items-center">
+                        <label class="text-[10px] text-slate-500 font-bold uppercase">彈性係數 k</label>
+                        <input type="range" id="kSlider" min="1" max="10" step="0.5" value="2" class="w-20 h-1.5 bg-slate-300 rounded-lg appearance-none cursor-pointer">
+                        <span id="kVal" class="text-xs font-mono text-slate-700">2.0</span>
+                    </div>
+                    
+                    <div class="flex flex-col items-center">
+                        <label class="text-[10px] text-slate-500 font-bold uppercase">質量 m</label>
+                        <input type="range" id="mSlider" min="1" max="10" step="0.5" value="2" class="w-20 h-1.5 bg-slate-300 rounded-lg appearance-none cursor-pointer">
+                        <span id="mVal" class="text-xs font-mono text-slate-700">2.0</span>
+                    </div>
+
+                    <div class="w-px h-8 bg-slate-300 mx-1"></div>
+
+                    <div class="flex flex-col items-center">
+                        <label class="text-[10px] text-slate-500 font-bold uppercase">振幅 A</label>
+                        <input type="range" id="amplitudeSlider" min="20" max="100" value="60" class="w-20 h-1.5 bg-slate-300 rounded-lg appearance-none cursor-pointer">
+                        <span id="ampVal" class="text-xs font-mono text-slate-700">60</span>
+                    </div>
+                </div>
+                
+                <!-- Calculated Output -->
+                <div class="flex flex-col justify-center bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 min-w-[80px]">
+                    <span class="text-[10px] text-blue-400 font-bold uppercase">頻率 f</span>
+                    <span id="freqDisplay" class="text-lg font-mono font-bold text-blue-600 leading-none">0.16</span>
+                    <span class="text-[10px] text-blue-400">Hz</span>
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex gap-2">
+                    <button id="toggleBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition font-medium shadow-sm active:scale-95 whitespace-nowrap min-w-[70px]">
+                        開始
+                    </button>
+                    <button id="resetBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-md transition font-medium shadow-sm active:scale-95 whitespace-nowrap">
+                        重置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="mainContainer" class="flex-1 relative flex flex-col md:flex-row overflow-hidden transition-all duration-300">
+        
+        <!-- Left/Bottom: Animation View -->
+        <div id="animContainer" class="md:w-1/3 bg-white border-r border-slate-200 p-4 flex flex-col items-center justify-center relative shadow-[inset_-10px_0_20px_-10px_rgba(0,0,0,0.05)] transition-all duration-300">
+            <h2 class="absolute top-4 left-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Physical System</h2>
+            <canvas id="animCanvas" class="w-full h-full max-w-[800px] max-h-[600px]"></canvas>
+            
+            <!-- Legend -->
+            <div class="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg border border-slate-100 shadow-sm text-xs space-y-2 pointer-events-none z-10">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span>物體 (Mass)</span>
+                </div>
+                <div id="legendX" class="flex items-center gap-2 transition-opacity duration-300">
+                    <div class="w-8 h-0.5 bg-blue-500 relative"><div class="absolute right-0 top-1/2 -translate-y-1/2 border-l-4 border-l-blue-500 border-y-4 border-y-transparent"></div></div>
+                    <span>位移 (x)</span>
+                </div>
+                <div id="legendV" class="flex items-center gap-2 transition-opacity duration-300">
+                    <div class="w-8 h-0.5 bg-green-500 relative"><div class="absolute right-0 top-1/2 -translate-y-1/2 border-l-4 border-l-green-500 border-y-4 border-y-transparent"></div></div>
+                    <span>速度 (v)</span>
+                </div>
+                <div id="legendA" class="flex items-center gap-2 transition-opacity duration-300">
+                    <div class="w-8 h-0.5 bg-red-500 relative"><div class="absolute right-0 top-1/2 -translate-y-1/2 border-l-4 border-l-red-500 border-y-4 border-y-transparent"></div></div>
+                    <span>加速度 (a)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right/Top: Graphs View -->
+        <div id="graphsContainer" class="md:w-2/3 bg-slate-50 p-2 sm:p-4 flex flex-col overflow-hidden relative transition-all duration-300">
+            <h2 class="absolute top-4 right-4 text-xs font-bold text-slate-400 uppercase tracking-wider z-10">Kinematics Graphs</h2>
+            
+            <!-- Graphs Area -->
+            <div id="graphFlex" class="flex-1 flex flex-col gap-2 h-full mb-2">
+                <!-- X-T Graph -->
+                <div id="containerX" class="graph-container flex-1 bg-white rounded-lg border border-slate-200 p-1 relative shadow-sm min-h-0">
+                    <span class="absolute top-1 left-1 text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded z-10 opacity-80">x-t</span>
+                    <canvas id="graphX" class="w-full h-full"></canvas>
+                </div>
+                <!-- V-T Graph -->
+                <div id="containerV" class="graph-container flex-1 bg-white rounded-lg border border-slate-200 p-1 relative shadow-sm min-h-0">
+                    <span class="absolute top-1 left-1 text-xs font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded z-10 opacity-80">v-t</span>
+                    <canvas id="graphV" class="w-full h-full"></canvas>
+                </div>
+                <!-- A-T Graph -->
+                <div id="containerA" class="graph-container flex-1 bg-white rounded-lg border border-slate-200 p-1 relative shadow-sm min-h-0">
+                    <span class="absolute top-1 left-1 text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded z-10 opacity-80">a-t</span>
+                    <canvas id="graphA" class="w-full h-full"></canvas>
+                </div>
+            </div>
+
+            <!-- Time Scrubber -->
+            <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-3 shrink-0 h-12">
+                <span class="text-xs font-bold text-slate-500 uppercase whitespace-nowrap">時間軸</span>
+                <input type="range" id="scrubSlider" class="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-ew-resize accent-slate-600" disabled>
+                <div id="scrubStatus" class="text-[10px] text-amber-600 font-medium px-2 py-1 bg-amber-50 rounded border border-amber-100 opacity-0 transition-opacity whitespace-nowrap">
+                    暫停以調整
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Configuration & State
+        const state = {
+            running: false, 
+            orientation: 'vertical', // 'vertical' or 'horizontal'
+            t: 0,
+            dt: 0.016,
+            k: 2,           
+            m: 2,           
+            period: 0,      
+            amplitude: 60,
+            phase: 0, 
+            history: [], 
+            maxHistory: 800, 
+            playbackIndex: 0, 
+            showX: true,
+            showV: true,
+            showA: true
+        };
+
+        // DOM Elements
+        const mainContainer = document.getElementById('mainContainer');
+        const animContainer = document.getElementById('animContainer');
+        const graphsContainer = document.getElementById('graphsContainer');
+        const graphFlex = document.getElementById('graphFlex');
+
+        const animCanvas = document.getElementById('animCanvas');
+        const graphXCanvas = document.getElementById('graphX');
+        const graphVCanvas = document.getElementById('graphV');
+        const graphACanvas = document.getElementById('graphA');
+        
+        const containers = {
+            x: document.getElementById('containerX'),
+            v: document.getElementById('containerV'),
+            a: document.getElementById('containerA')
+        };
+
+        const ctxAnim = animCanvas.getContext('2d');
+        const ctxX = graphXCanvas.getContext('2d');
+        const ctxV = graphVCanvas.getContext('2d');
+        const ctxA = graphACanvas.getContext('2d');
+
+        const inputs = {
+            amp: document.getElementById('amplitudeSlider'),
+            ampVal: document.getElementById('ampVal'),
+            k: document.getElementById('kSlider'),
+            kVal: document.getElementById('kVal'),
+            m: document.getElementById('mSlider'),
+            mVal: document.getElementById('mVal'),
+            freqDisplay: document.getElementById('freqDisplay'),
+            
+            toggle: document.getElementById('toggleBtn'),
+            reset: document.getElementById('resetBtn'),
+            orientBtn: document.getElementById('orientBtn'),
+            orientLabel: document.getElementById('orientLabel'),
+            
+            checkX: document.getElementById('checkX'),
+            checkV: document.getElementById('checkV'),
+            checkA: document.getElementById('checkA'),
+            legendX: document.getElementById('legendX'),
+            legendV: document.getElementById('legendV'),
+            legendA: document.getElementById('legendA'),
+            
+            scrub: document.getElementById('scrubSlider'),
+            scrubStatus: document.getElementById('scrubStatus')
+        };
+
+        // Resize Handling
+        function resizeCanvases() {
+            const setSize = (canvas) => {
+                const rect = canvas.parentElement.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return { w: 0, h: 0 };
+                
+                canvas.width = canvas.clientWidth * window.devicePixelRatio;
+                canvas.height = canvas.clientHeight * window.devicePixelRatio;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                
+                return { w: canvas.clientWidth, h: canvas.clientHeight };
+            };
+
+            state.animSize = setSize(animCanvas);
+            state.graphXSize = setSize(graphXCanvas);
+            state.graphVSize = setSize(graphVCanvas);
+            state.graphASize = setSize(graphACanvas);
+        }
+
+        window.addEventListener('resize', resizeCanvases);
+
+        // Layout Switching Logic
+        function updateLayout() {
+            if (state.orientation === 'horizontal') {
+                // Horizontal Mode: Graphs Top, Anim Bottom
+                mainContainer.className = "flex-1 relative flex flex-col-reverse overflow-hidden transition-all duration-300";
+                
+                animContainer.className = "h-1/2 w-full bg-white border-t border-slate-200 p-4 flex flex-col items-center justify-center relative shadow-[inset_0_10px_20px_-10px_rgba(0,0,0,0.05)] transition-all duration-300";
+                graphsContainer.className = "h-1/2 w-full bg-slate-50 p-2 sm:p-4 flex flex-col overflow-hidden relative transition-all duration-300";
+                
+                // Switch graphs layout to row (side by side) instead of col
+                graphFlex.className = "flex-1 flex flex-row gap-2 h-full mb-2";
+
+                inputs.orientLabel.textContent = "轉為垂直";
+            } else {
+                // Vertical Mode: Anim Left, Graphs Right
+                mainContainer.className = "flex-1 relative flex flex-col md:flex-row overflow-hidden transition-all duration-300";
+                
+                animContainer.className = "md:w-1/3 bg-white border-r border-slate-200 p-4 flex flex-col items-center justify-center relative shadow-[inset_-10px_0_20px_-10px_rgba(0,0,0,0.05)] transition-all duration-300";
+                graphsContainer.className = "md:w-2/3 bg-slate-50 p-2 sm:p-4 flex flex-col overflow-hidden relative transition-all duration-300";
+                
+                // Stack graphs vertically
+                graphFlex.className = "flex-1 flex flex-col gap-2 h-full mb-2";
+
+                inputs.orientLabel.textContent = "轉為水平";
+            }
+            
+            setTimeout(resizeCanvases, 50); 
+            setTimeout(resizeCanvases, 350); 
+        }
+
+        inputs.orientBtn.addEventListener('click', () => {
+            state.orientation = state.orientation === 'vertical' ? 'horizontal' : 'vertical';
+            updateLayout();
+            drawAnimation();
+        });
+
+        // Physics Calculation
+        function calculatePhysicsParams() {
+            const omega = Math.sqrt(state.k / state.m);
+            const f = omega / (2 * Math.PI);
+            state.period = 1 / f;
+            inputs.freqDisplay.textContent = f.toFixed(2);
+            return omega;
+        }
+
+        function updatePhysics() {
+            if (state.history.length === 0) {
+                const omega = Math.sqrt(state.k / state.m);
+                const x = state.amplitude; 
+                const v = 0;
+                const a = -state.amplitude * (omega * omega);
+                state.history.push({ t:0, x, v, a, omega: omega, phase: 0 }); 
+                state.playbackIndex = 0;
+            }
+
+            if (!state.running) return;
+
+            const omega = calculatePhysicsParams(); 
+            state.phase += omega * state.dt;
+            state.t += state.dt;
+
+            const x = state.amplitude * Math.cos(state.phase);
+            const v = -state.amplitude * omega * Math.sin(state.phase);
+            const a = -state.amplitude * (omega * omega) * Math.cos(state.phase);
+
+            state.history.push({ t: state.t, x, v, a, currentPhase: state.phase, currentOmega: omega });
+            
+            if (state.history.length > state.maxHistory) state.history.shift();
+            
+            state.playbackIndex = state.history.length - 1;
+            inputs.scrub.max = state.history.length - 1;
+            inputs.scrub.value = state.playbackIndex;
+        }
+
+        // Drawing Logic
+        function drawAnimation() {
+            const ctx = ctxAnim;
+            const w = state.animSize.w;
+            const h = state.animSize.h;
+            
+            ctx.clearRect(0, 0, w, h);
+
+            if (state.history.length === 0) return;
+            const data = state.history[state.playbackIndex];
+
+            if (state.orientation === 'horizontal') {
+                drawHorizontalSystem(ctx, w, h, data);
+            } else {
+                drawVerticalSystem(ctx, w, h, data);
+            }
+        }
+
+        // ... (drawVerticalSystem and drawHorizontalSystem are reused from previous version) ...
+        function drawVerticalSystem(ctx, w, h, data) {
+            const cx = w / 2;
+            const cy = h / 2;
+            const blockY = cy + data.x;
+            const blockCenterY = blockY + 25;
+            const equilibriumY = cy + 25;
+
+            ctx.beginPath(); ctx.moveTo(cx - 40, 40); ctx.lineTo(cx + 40, 40);
+            ctx.lineWidth = 4; ctx.strokeStyle = '#334155'; ctx.stroke();
+
+            ctx.beginPath(); ctx.moveTo(cx, 40);
+            const numCoils = 12;
+            const springLength = blockY - 40;
+            for (let i = 1; i <= numCoils; i++) {
+                const y = 40 + (springLength / numCoils) * i;
+                const xOffset = (i % 2 === 0 ? -10 : 10);
+                if (i === numCoils) ctx.lineTo(cx, y);
+                else ctx.lineTo(cx + xOffset, y - (springLength/numCoils)/2);
+            }
+            ctx.lineTo(cx, blockY);
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+
+            ctx.fillStyle = '#3b82f6';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+            ctx.fillRect(cx - 25, blockY, 50, 50);
+            ctx.shadowColor = 'transparent';
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(`m=${state.m}`, cx, blockY + 28);
+
+            drawDashedLine(ctx, cx - 80, equilibriumY, cx + 80, equilibriumY);
+            ctx.fillStyle = '#64748b'; ctx.fillText('x=0', cx, equilibriumY + 20);
+
+            drawVectors(ctx, cx, blockCenterY, equilibriumY, data.x, data.v, data.a, 'vertical');
+        }
+
+        function drawHorizontalSystem(ctx, w, h, data) {
+            const cx = w / 2;
+            const cy = h / 2;
+            const blockX = cx + data.x;
+            const blockCenterY = cy; // Block center Y is constant in horizontal
+            const equilibriumX = cx;
+
+            // Use the full width for drawing environment
+            ctx.beginPath(); ctx.moveTo(0, cy + 26); ctx.lineTo(w, cy + 26);
+            ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.stroke();
+            
+            ctx.beginPath();
+            for(let i=0; i<w; i+=20) { ctx.moveTo(i, cy + 26); ctx.lineTo(i-10, cy + 36); }
+            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.stroke();
+
+            const wallX = cx - 180; 
+            ctx.beginPath(); ctx.moveTo(wallX, cy - 60); ctx.lineTo(wallX, cy + 26);
+            ctx.lineWidth = 4; ctx.strokeStyle = '#334155'; ctx.stroke();
+            
+            ctx.beginPath();
+            for(let i=cy-60; i<cy+26; i+=15) { ctx.moveTo(wallX, i); ctx.lineTo(wallX-10, i+10); }
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.stroke();
+
+            const blockLeftEdge = blockX - 25;
+            ctx.beginPath(); ctx.moveTo(wallX, cy);
+            const numCoils = 15;
+            const springLen = blockLeftEdge - wallX;
+            for (let i = 1; i <= numCoils; i++) {
+                const x = wallX + (springLen / numCoils) * i;
+                const yOffset = (i % 2 === 0 ? -12 : 12);
+                if (i === numCoils) ctx.lineTo(blockLeftEdge, cy);
+                else ctx.lineTo(x - (springLen/numCoils)/2, cy + yOffset);
+            }
+            ctx.lineTo(blockLeftEdge, cy);
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+
+            ctx.fillStyle = '#3b82f6';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+            ctx.fillRect(blockX - 25, cy - 25, 50, 50);
+            ctx.shadowColor = 'transparent';
+
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(`m=${state.m}`, blockX, cy + 4);
+
+            drawDashedLine(ctx, cx, cy - 80, cx, cy + 60);
+            ctx.fillStyle = '#64748b'; ctx.fillText('x=0', cx, cy - 85);
+
+            drawVectors(ctx, blockX, cy, equilibriumX, data.x, data.v, data.a, 'horizontal');
+        }
+
+        function drawDashedLine(ctx, x1, y1, x2, y2) {
+            ctx.beginPath(); ctx.setLineDash([5, 5]); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+        }
+
+        function drawVectors(ctx, blockCX, blockCY, eqPos, x, v, a, orientation) {
+            if (state.showX && Math.abs(x) > 1) {
+                if (orientation === 'vertical') {
+                    const vecX = blockCX - 55;
+                    drawArrow(ctx, vecX, eqPos, vecX, blockCY, '#3b82f6', 'x');
+                    ctx.beginPath(); ctx.moveTo(vecX, blockCY); ctx.lineTo(blockCX - 25, blockCY);
+                    ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+                } else {
+                    const vecY = blockCY - 40;
+                    drawArrow(ctx, eqPos, vecY, blockCX, vecY, '#3b82f6', 'x');
+                    ctx.beginPath(); ctx.moveTo(blockCX, vecY); ctx.lineTo(blockCX, blockCY - 25);
+                    ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+                }
+            }
+            const aScale = 0.1;
+            if (state.showA && Math.abs(a) > 1) {
+                if (orientation === 'vertical') {
+                    const vecX = blockCX - 30;
+                    drawArrow(ctx, vecX, blockCY, vecX, blockCY + a * aScale, '#ef4444', 'a');
+                } else {
+                    const vecY = blockCY - 10;
+                    drawArrow(ctx, blockCX, vecY, blockCX + a * aScale, vecY, '#ef4444', 'a');
+                }
+            }
+            const vScale = 0.5;
+            if (state.showV && Math.abs(v) > 1) {
+                if (orientation === 'vertical') {
+                    const vecX = blockCX + 30;
+                    drawArrow(ctx, vecX, blockCY, vecX, blockCY + v * vScale, '#22c55e', 'v');
+                } else {
+                    const vecY = blockCY + 10;
+                    drawArrow(ctx, blockCX, vecY, blockCX + v * vScale, vecY, '#22c55e', 'v');
+                }
+            }
+        }
+
+        function drawArrow(ctx, x1, y1, x2, y2, color, label) {
+            const headLength = 8;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - headLength * Math.cos(angle - Math.PI/6), y2 - headLength * Math.sin(angle - Math.PI/6));
+            ctx.lineTo(x2 - headLength * Math.cos(angle + Math.PI/6), y2 - headLength * Math.sin(angle + Math.PI/6));
+            ctx.lineTo(x2, y2);
+            ctx.fillStyle = color; ctx.fill();
+            if (label) {
+                ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = color; ctx.textAlign = 'center';
+                const midX = (x1 + x2) / 2; const midY = (y1 + y2) / 2;
+                const isVertical = Math.abs(x1 - x2) < 1;
+                if (isVertical) {
+                    const xOffset = x1 < state.animSize.w/2 ? -15 : 15;
+                    ctx.fillText(label, midX + xOffset, midY + 4);
+                } else {
+                    ctx.fillText(label, midX, midY - 8);
+                }
+            }
+        }
+
+        function drawGraph(ctx, size, dataKey, color, normalizationScale) {
+            const w = size.w;
+            const h = size.h;
+            
+            ctx.clearRect(0, 0, w, h);
+            
+            if (state.history.length < 1) return;
+            
+            // Common params
+            const currentIdx = state.playbackIndex;
+            const currentData = state.history[currentIdx];
+            const omega = Math.sqrt(state.k / state.m); 
+            let startPhase = currentData.currentPhase !== undefined ? currentData.currentPhase : state.phase;
+            const quarterPeriod = state.period / 4;
+
+            if (state.orientation === 'vertical') {
+                // === VERTICAL MODE (Standard: Time X, Value Y) ===
+                const centerX = w / 2;
+                const plotScale = (h / 2) * 0.8; 
+                const stepX = w / (state.maxHistory * 0.8); 
+                const pixelsPerSecond = stepX / state.dt;   
+
+                // Grid (Vertical lines for time)
+                const halfWindowTime = (w / 2) / pixelsPerSecond;
+                const startTime = currentData.t - halfWindowTime;
+                const endTime = currentData.t + halfWindowTime;
+                let tGrid = Math.ceil(startTime / quarterPeriod) * quarterPeriod;
+                
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.06)'; ctx.lineWidth = 1;
+                while (tGrid < endTime) {
+                    const xGrid = centerX + (tGrid - currentData.t) * pixelsPerSecond;
+                    ctx.moveTo(xGrid, 0); ctx.lineTo(xGrid, h);
+                    tGrid += quarterPeriod;
+                }
+                ctx.stroke();
+
+                // Axes
+                ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2);
+                ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, h);
+                ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+
+                // History
+                ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = color;
+                let firstPoint = true;
+                const minIdx = Math.max(0, currentIdx - Math.ceil(centerX / stepX) - 10);
+                for (let i = minIdx; i <= currentIdx; i++) {
+                    const val = state.history[i][dataKey];
+                    const x = centerX + (i - currentIdx) * stepX;
+                    const y = (h / 2) + (val / normalizationScale) * plotScale; 
+                    if (firstPoint) { ctx.moveTo(x, y); firstPoint = false; } else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Future
+                ctx.beginPath(); ctx.strokeStyle = color; ctx.setLineDash([3, 3]); ctx.globalAlpha = 0.6; 
+                ctx.moveTo(centerX, (h / 2) + (currentData[dataKey] / normalizationScale) * plotScale);
+                const futurePixels = w - centerX;
+                const futureSteps = Math.ceil(futurePixels / stepX);
+                for (let i = 1; i <= futureSteps; i++) {
+                    const dt = i * state.dt;
+                    const nextPhase = startPhase + omega * dt;
+                    let val = getSimulatedValue(dataKey, nextPhase, omega);
+                    const x = centerX + i * stepX;
+                    const y = (h / 2) + (val / normalizationScale) * plotScale;
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1.0;
+
+                // Dot
+                const dotY = (h / 2) + (currentData[dataKey] / normalizationScale) * plotScale;
+                ctx.fillStyle = color; ctx.beginPath(); ctx.arc(centerX, dotY, 5, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            } 
+            else {
+                // === HORIZONTAL MODE (Rotated: Time Y, Value X) ===
+                // Center line is vertical (Equilibrium). Time cursor is horizontal center.
+                // Past goes UP (negative Y relative to center?). 
+                // Let's say: Time flows DOWN. So History is ABOVE (smaller Y), Future is BELOW (larger Y).
+                // Screen coordinates: 0 is top. 
+                // So History: Y < CenterY. Future: Y > CenterY.
+                
+                const centerY = h / 2; // Current Time Cursor
+                const centerX = w / 2; // Value Equilibrium (0)
+                
+                // Scale value to width.
+                // Use (w / 2) * 0.8 as range
+                const plotScale = (w / 2) * 0.8; 
+                // Time Step Y
+                const stepY = h / (state.maxHistory * 0.8); 
+                const pixelsPerSecond = stepY / state.dt;
+
+                // Grid (Horizontal lines for time)
+                const halfWindowTime = (h / 2) / pixelsPerSecond;
+                const startTime = currentData.t - halfWindowTime;
+                const endTime = currentData.t + halfWindowTime;
+                let tGrid = Math.ceil(startTime / quarterPeriod) * quarterPeriod;
+
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.06)'; ctx.lineWidth = 1;
+                while (tGrid < endTime) {
+                    // Position relative to centerY
+                    const yGrid = centerY + (tGrid - currentData.t) * pixelsPerSecond;
+                    ctx.moveTo(0, yGrid); ctx.lineTo(w, yGrid);
+                    tGrid += quarterPeriod;
+                }
+                ctx.stroke();
+
+                // Axes
+                // Value Axis (Vertical line at centerX, x=0)
+                ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, h);
+                ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.stroke();
+                
+                // Time Cursor (Horizontal line at centerY)
+                ctx.beginPath(); ctx.moveTo(0, centerY); ctx.lineTo(w, centerY);
+                ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+
+                // History (Past is Above, so y < centerY)
+                // i < currentIdx implies t < currentT. 
+                // (i - currentIdx) is negative.
+                // y = centerY + (negative) * stepY -> moves UP. Correct.
+                
+                ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = color;
+                let firstPoint = true;
+                const minIdx = Math.max(0, currentIdx - Math.ceil(centerY / stepY) - 10);
+                
+                for (let i = minIdx; i <= currentIdx; i++) {
+                    const val = state.history[i][dataKey];
+                    // X represents Value now
+                    const x = centerX + (val / normalizationScale) * plotScale;
+                    // Y represents Time
+                    const y = centerY + (i - currentIdx) * stepY;
+                    
+                    if (firstPoint) { ctx.moveTo(x, y); firstPoint = false; } else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Future (Below)
+                ctx.beginPath(); ctx.strokeStyle = color; ctx.setLineDash([3, 3]); ctx.globalAlpha = 0.6;
+                const startX = centerX + (currentData[dataKey] / normalizationScale) * plotScale;
+                ctx.moveTo(startX, centerY);
+                
+                const futurePixels = h - centerY;
+                const futureSteps = Math.ceil(futurePixels / stepY);
+                for (let i = 1; i <= futureSteps; i++) {
+                    const dt = i * state.dt;
+                    const nextPhase = startPhase + omega * dt;
+                    let val = getSimulatedValue(dataKey, nextPhase, omega);
+                    
+                    const x = centerX + (val / normalizationScale) * plotScale;
+                    const y = centerY + i * stepY; // Positive direction (Down)
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1.0;
+
+                // Dot
+                const dotX = centerX + (currentData[dataKey] / normalizationScale) * plotScale;
+                ctx.fillStyle = color; ctx.beginPath(); ctx.arc(dotX, centerY, 5, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            }
+        }
+
+        function getSimulatedValue(key, phase, omega) {
+            if (key === 'x') return state.amplitude * Math.cos(phase);
+            if (key === 'v') return -state.amplitude * omega * Math.sin(phase);
+            if (key === 'a') return -state.amplitude * (omega * omega) * Math.cos(phase);
+            return 0;
+        }
+
+        function drawLoop() {
+            updatePhysics();
+            drawAnimation();
+            const maxAmp = 100;
+            const normV = maxAmp * 4.0; 
+            const normA = maxAmp * 5.0; 
+            
+            if (state.showX && state.graphXSize.w > 0) 
+                drawGraph(ctxX, state.graphXSize, 'x', '#2563eb', maxAmp);
+            
+            if (state.showV && state.graphVSize.w > 0) 
+                drawGraph(ctxV, state.graphVSize, 'v', '#16a34a', normV);
+            
+            if (state.showA && state.graphASize.w > 0) 
+                drawGraph(ctxA, state.graphASize, 'a', '#dc2626', normA);
+
+            requestAnimationFrame(drawLoop);
+        }
+
+        inputs.k.addEventListener('input', (e) => {
+            state.k = parseFloat(e.target.value);
+            inputs.kVal.textContent = state.k.toFixed(1);
+            calculatePhysicsParams();
+        });
+        inputs.m.addEventListener('input', (e) => {
+            state.m = parseFloat(e.target.value);
+            inputs.mVal.textContent = state.m.toFixed(1);
+            calculatePhysicsParams();
+        });
+        inputs.amp.addEventListener('input', (e) => {
+            state.amplitude = parseFloat(e.target.value);
+            inputs.ampVal.textContent = state.amplitude;
+        });
+        inputs.scrub.addEventListener('input', (e) => {
+            if (!state.running) {
+                state.playbackIndex = parseInt(e.target.value);
+                drawAnimation(); 
+            }
+        });
+        inputs.toggle.addEventListener('click', () => {
+            state.running = !state.running;
+            if (state.running) {
+                inputs.toggle.textContent = "暫停";
+                inputs.toggle.classList.replace('bg-blue-600', 'bg-orange-500');
+                inputs.toggle.classList.replace('hover:bg-blue-700', 'hover:bg-orange-600');
+            } else {
+                inputs.toggle.textContent = "繼續";
+                inputs.toggle.classList.replace('bg-orange-500', 'bg-blue-600');
+                inputs.toggle.classList.replace('hover:bg-orange-600', 'hover:bg-blue-700');
+            }
+            if (state.running) {
+                inputs.scrub.disabled = true;
+                inputs.scrubStatus.style.opacity = '1';
+                inputs.scrub.classList.add('opacity-50');
+            } else {
+                inputs.scrub.disabled = false;
+                inputs.scrubStatus.style.opacity = '0';
+                inputs.scrub.classList.remove('opacity-50');
+                inputs.scrub.max = Math.max(0, state.history.length - 1);
+            }
+        });
+        inputs.reset.addEventListener('click', () => {
+            state.running = false;
+            state.t = 0;
+            state.phase = 0;
+            state.history = [];
+            state.playbackIndex = 0;
+            inputs.toggle.textContent = "開始";
+            inputs.toggle.classList.replace('bg-orange-500', 'bg-blue-600');
+            inputs.toggle.classList.replace('hover:bg-orange-600', 'hover:bg-blue-700');
+            state.k = 2; state.m = 2; state.amplitude = 60;
+            inputs.k.value = 2; inputs.m.value = 2; inputs.amp.value = 60;
+            inputs.kVal.textContent = "2.0"; inputs.mVal.textContent = "2.0"; inputs.ampVal.textContent = "60";
+            calculatePhysicsParams();
+            if(!inputs.scrub.disabled) {
+                 inputs.scrub.disabled = false;
+                 inputs.scrubStatus.style.opacity = '0';
+                 inputs.scrub.classList.remove('opacity-50');
+            }
+            updatePhysics(); 
+            drawAnimation(); 
+        });
+
+        // Visibility Toggles
+        function updateVisibility() {
+            state.showX = inputs.checkX.checked;
+            state.showV = inputs.checkV.checked;
+            state.showA = inputs.checkA.checked;
+            state.showX ? containers.x.classList.remove('hidden') : containers.x.classList.add('hidden');
+            state.showV ? containers.v.classList.remove('hidden') : containers.v.classList.add('hidden');
+            state.showA ? containers.a.classList.remove('hidden') : containers.a.classList.add('hidden');
+            inputs.legendX.style.opacity = state.showX ? '1' : '0.3';
+            inputs.legendV.style.opacity = state.showV ? '1' : '0.3';
+            inputs.legendA.style.opacity = state.showA ? '1' : '0.3';
+            setTimeout(resizeCanvases, 50);
+        }
+        inputs.checkX.addEventListener('change', updateVisibility);
+        inputs.checkV.addEventListener('change', updateVisibility);
+        inputs.checkA.addEventListener('change', updateVisibility);
+
+        // Initialization
+        calculatePhysicsParams();
+        updatePhysics();
+        resizeCanvases();
+        drawLoop();
+
+    </script>
+</body>
+</html>

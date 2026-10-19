@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系統質心運動模擬</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #1a202c; color: #e2e8f0; }
+        canvas { display: block; width: 100%; cursor: pointer; }
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-6">
+
+    <div class="max-w-6xl w-full">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-blue-400 mb-2">質心運動展示</h1>
+        </header>
+
+        <!-- 控制面板 -->
+        <div class="flex flex-wrap justify-center gap-4 mb-6">
+            <button id="startBtn" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition no-select">按住施力 👉</button>
+            <button id="reverseBtn" class="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-semibold transition no-select">按住反向施力 👈</button>
+            <button id="cmBtn" class="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition no-select">顯示質心 (關)</button>
+            <button id="resetBtn" class="px-6 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-semibold transition no-select">重置系統</button>
+        </div>
+
+        <!-- 畫布區域 -->
+        <div class="flex flex-col gap-6 w-full">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="relative w-full md:w-2/3 rounded bg-gray-900 overflow-hidden shadow-lg border border-gray-700">
+                    <canvas id="canvas1"></canvas>
+                </div>
+                <div class="relative w-full md:w-1/3 rounded bg-gray-900 overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
+                    <canvas id="graph1"></canvas>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="relative w-full md:w-2/3 rounded bg-gray-900 overflow-hidden shadow-lg border border-gray-700">
+                    <canvas id="canvas2"></canvas>
+                </div>
+                <div class="relative w-full md:w-1/3 rounded bg-gray-900 overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
+                    <canvas id="graph2"></canvas>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="relative w-full md:w-2/3 rounded bg-gray-900 overflow-hidden shadow-lg border border-gray-700">
+                    <canvas id="canvas3"></canvas>
+                </div>
+                <div class="relative w-full md:w-1/3 rounded bg-gray-900 overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
+                    <canvas id="graph3"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let canvases, ctxs, graphCanvases, graphCtxs;
+        let systems = [];
+        let isAnimating = false;
+        let lastTime = 0;
+        let cameraX = 0;
+        
+        // 恢復推力為 150
+        const APPLIED_FORCE = 150;
+        
+        let isApplyingForce = false;
+        let isApplyingReverseForce = false;
+        let showCM = false;
+        let globalTime = 0;
+        let historyData = [[], [], []];
+
+        const TRACK_HEIGHT = 140;
+        const GROUND_Y = TRACK_HEIGHT - 30;
+        const START_X = 50;
+        const BOX_WIDTH = 120;
+        const BOX_HEIGHT = 60;
+
+        function initDOM() {
+            canvases = [
+                document.getElementById('canvas1'),
+                document.getElementById('canvas2'),
+                document.getElementById('canvas3')
+            ];
+            ctxs = canvases.map(c => c.getContext('2d'));
+
+            graphCanvases = [
+                document.getElementById('graph1'),
+                document.getElementById('graph2'),
+                document.getElementById('graph3')
+            ];
+            graphCtxs = graphCanvases.map(c => c.getContext('2d'));
+        }
+
+        function initSystems() {
+            systems = [
+                { isRevealed: true, box: { x: START_X, w: BOX_WIDTH, h: BOX_HEIGHT, m: 6, v: 0, isSolid: true }, balls: [] },
+                { isRevealed: false, box: { x: START_X, w: BOX_WIDTH, h: BOX_HEIGHT, m: 4, v: 0, isSolid: false, thickness: 6 }, balls: [{ x: START_X + 60, y: GROUND_Y - 15, r: 15, m: 2, v: 0 }] },
+                { isRevealed: false, box: { x: START_X, w: BOX_WIDTH, h: BOX_HEIGHT, m: 3, v: 0, isSolid: false, thickness: 6 }, balls: [{ x: START_X + 30, y: GROUND_Y - 10, r: 10, m: 1, v: 0 }, { x: START_X + 90, y: GROUND_Y - 15, r: 15, m: 2, v: 0 }] }
+            ];
+            isAnimating = false; lastTime = 0; cameraX = 0; isApplyingForce = false; isApplyingReverseForce = false;
+            globalTime = 0; historyData = [[], [], []];
+            drawAll(); drawGraphs();
+        }
+
+        function updatePhysics(dt) {
+            if (dt > 0.05) dt = 0.05;
+            systems.forEach(sys => {
+                let force = 0;
+                if (isApplyingForce) force += APPLIED_FORCE;
+                if (isApplyingReverseForce) force -= APPLIED_FORCE;
+                let a_box = force / sys.box.m;
+                sys.box.v += a_box * dt;
+                sys.box.x += sys.box.v * dt;
+                sys.balls.forEach(ball => { ball.x += ball.v * dt; });
+                sys.balls.forEach(ball => {
+                    const leftWall = sys.box.x + sys.box.thickness, rightWall = sys.box.x + sys.box.w - sys.box.thickness;
+                    if (ball.x - ball.r <= leftWall) { ball.x = leftWall + ball.r; resolveCollision(sys.box, ball); }
+                    else if (ball.x + ball.r >= rightWall) { ball.x = rightWall - ball.r; resolveCollision(sys.box, ball); }
+                });
+                if (sys.balls.length === 2) {
+                    let b1 = sys.balls[0], b2 = sys.balls[1];
+                    if (b1.x + b1.r >= b2.x - b2.r) {
+                        let overlap = (b1.x + b1.r) - (b2.x - b2.r);
+                        b1.x -= overlap / 2; b2.x += overlap / 2;
+                        resolveCollision(b1, b2);
+                    }
+                }
+            });
+        }
+
+        function resolveCollision(obj1, obj2) {
+            let v1 = obj1.v, v2 = obj2.v, m1 = obj1.m, m2 = obj2.m;
+            obj1.v = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
+            obj2.v = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
+        }
+
+        function getCenterOfMassX(sys) {
+            let totalM = sys.box.m, massM = sys.box.m * (sys.box.x + sys.box.w / 2);
+            sys.balls.forEach(b => { totalM += b.m; massM += b.m * b.x; });
+            return massM / totalM;
+        }
+
+        function getCenterOfMassV(sys) {
+            let totalM = sys.box.m, massV = sys.box.m * sys.box.v;
+            sys.balls.forEach(b => { totalM += b.m; massV += b.m * b.v; });
+            return massV / totalM;
+        }
+
+        function animate(timestamp) {
+            if (!isAnimating) return;
+            if (!lastTime) lastTime = timestamp;
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            updatePhysics(dt);
+            globalTime += dt;
+            systems.forEach((sys, i) => {
+                historyData[i].push({ t: globalTime, v_cm: getCenterOfMassV(sys), v_box: sys.box.v, v_balls: sys.balls.map(b => b.v) });
+            });
+            const targetCM_X = getCenterOfMassX(systems[0]);
+            const canvasCenter = canvases[0].width / 2;
+            if (targetCM_X > canvasCenter) cameraX = targetCM_X - canvasCenter;
+            drawAll(); drawGraphs();
+            requestAnimationFrame(animate);
+        }
+
+        function resize() {
+            if (!canvases) return;
+            canvases.forEach(c => { if(c.parentElement) { c.width = c.parentElement.clientWidth; c.height = TRACK_HEIGHT; } });
+            graphCanvases.forEach(c => { if(c.parentElement) { c.width = c.parentElement.clientWidth; c.height = TRACK_HEIGHT; } });
+            drawAll(); drawGraphs();
+        }
+
+        function drawBackground(ctx, w, h, camX) {
+            // 1. 地面線
+            ctx.beginPath();
+            ctx.moveTo(0, GROUND_Y);
+            ctx.lineTo(w, GROUND_Y);
+            ctx.strokeStyle = '#4a5568'; 
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 2. 恢復樹木間距為 400
+            const treeSpacing = 400;
+            const startTreeIdx = Math.floor(camX / treeSpacing);
+            const endTreeIdx = Math.ceil((camX + w) / treeSpacing);
+
+            for (let i = startTreeIdx; i <= endTreeIdx; i++) {
+                const treeX = i * treeSpacing - camX + 200;
+                const treeBottom = GROUND_Y;
+                const physicalX = i * treeSpacing;
+                
+                // 樹幹
+                ctx.fillStyle = '#5D4037';
+                ctx.fillRect(treeX - 5, treeBottom - 30, 10, 30);
+                
+                // 樹冠
+                ctx.fillStyle = '#22543d'; 
+                ctx.beginPath(); ctx.moveTo(treeX - 30, treeBottom - 30); ctx.lineTo(treeX + 30, treeBottom - 30); ctx.lineTo(treeX, treeBottom - 70); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(treeX - 25, treeBottom - 60); ctx.lineTo(treeX + 25, treeBottom - 60); ctx.lineTo(treeX, treeBottom - 100); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(treeX - 20, treeBottom - 90); ctx.lineTo(treeX + 20, treeBottom - 90); ctx.lineTo(treeX, treeBottom - 135); ctx.fill();
+
+                // 樹木座標數字
+                ctx.fillStyle = '#a0aec0';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText(`${physicalX} m`, treeX, treeBottom + 5);
+            }
+
+            // 3. 地面刻度斜線
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 1;
+            let offset = -(camX % 20); 
+            for (let x = offset; x < w; x += 20) {
+                ctx.beginPath();
+                ctx.moveTo(x, GROUND_Y);
+                ctx.lineTo(x - 10, h);
+                ctx.stroke();
+            }
+        }
+
+        function drawPushingHand(ctx, targetX, targetY, isReverse) {
+            ctx.font = '30px Arial';
+            ctx.textBaseline = 'middle';
+            if (!isReverse) {
+                ctx.textAlign = 'right';
+                ctx.fillText('👉', targetX - 10, targetY);
+                ctx.fillStyle = '#fbd38d'; ctx.font = 'bold 16px Arial';
+                ctx.fillText('F', targetX - 45, targetY - 15);
+            } else {
+                ctx.textAlign = 'left';
+                ctx.fillText('👈', targetX + BOX_WIDTH + 10, targetY);
+                ctx.fillStyle = '#fc8181'; ctx.font = 'bold 16px Arial';
+                ctx.fillText('-F', targetX + BOX_WIDTH + 45, targetY - 15);
+            }
+        }
+
+        function drawAll() {
+            if (!ctxs) return;
+            ctxs.forEach((ctx, index) => {
+                const w = ctx.canvas.width, h = ctx.canvas.height, sys = systems[index];
+                ctx.clearRect(0, 0, w, h);
+                drawBackground(ctx, w, h, cameraX);
+                const drawBoxX = sys.box.x - cameraX;
+
+                if (sys.isRevealed) {
+                    if (!sys.box.isSolid) {
+                        ctx.fillStyle = '#8c6d12'; 
+                        ctx.fillRect(drawBoxX, GROUND_Y - sys.box.h, sys.box.w, sys.box.h);
+                    }
+                    sys.balls.forEach((ball, bIndex) => {
+                        const drawBallX = ball.x - cameraX;
+                        ctx.beginPath();
+                        ctx.arc(drawBallX, ball.y, ball.r, 0, Math.PI * 2);
+                        ctx.fillStyle = bIndex === 0 ? '#63b3ed' : '#68d391';
+                        ctx.fill();
+                        ctx.strokeStyle = '#2d3748'; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.fillStyle = '#1a202c'; ctx.font = '10px Arial'; ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle'; ctx.fillText(ball.m, drawBallX, ball.y);
+                    });
+                }
+
+                ctx.strokeStyle = '#b7791f'; ctx.lineWidth = 2;
+                if (!sys.isRevealed || sys.box.isSolid) {
+                    ctx.globalAlpha = 1.0; ctx.fillStyle = '#ecc94b';
+                    ctx.fillRect(drawBoxX, GROUND_Y - sys.box.h, sys.box.w, sys.box.h);
+                } else {
+                    ctx.globalAlpha = 0.6; ctx.fillStyle = '#ecc94b';
+                    ctx.fillRect(drawBoxX, GROUND_Y - sys.box.h, sys.box.w, sys.box.h);
+                    ctx.globalAlpha = 1.0;
+                }
+                ctx.strokeRect(drawBoxX, GROUND_Y - sys.box.h, sys.box.w, sys.box.h);
+
+                ctx.fillStyle = '#1a202c'; ctx.font = '10px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+                ctx.fillText(sys.box.m, drawBoxX + 5, GROUND_Y - sys.box.h + 5);
+
+                if (isApplyingForce) drawPushingHand(ctx, drawBoxX, GROUND_Y - sys.box.h / 2, false);
+                if (isApplyingReverseForce) drawPushingHand(ctx, drawBoxX, GROUND_Y - sys.box.h / 2, true);
+
+                if (showCM) {
+                    const cmX = getCenterOfMassX(sys), drawCmX = cmX - cameraX, cmY = GROUND_Y - sys.box.h / 2;
+                    ctx.strokeStyle = '#fc8181'; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(drawCmX - 10, cmY); ctx.lineTo(drawCmX + 10, cmY);
+                    ctx.moveTo(drawCmX, cmY - 10); ctx.lineTo(drawCmX, cmY + 10); ctx.stroke();
+                    ctx.fillStyle = '#fc8181'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                    ctx.fillText('CM', drawCmX, cmY - 12);
+                }
+            });
+        }
+
+        function drawGraphs() {
+            if (!graphCtxs) return;
+            const TIME_WINDOW = 5;
+            const minT = Math.max(0, globalTime - TIME_WINDOW);
+            
+            // 恢復基礎的 V 軸範圍為 50 / -20
+            let maxV = 50, minV = -20;
+            historyData.forEach(sysData => {
+                sysData.forEach(pt => {
+                    let allV = [pt.v_cm, pt.v_box, ...pt.v_balls];
+                    maxV = Math.max(maxV, ...allV); minV = Math.min(minV, ...allV);
+                });
+            });
+            maxV *= 1.2; minV *= 1.2;
+
+            graphCtxs.forEach((ctx, index) => {
+                const w = ctx.canvas.width, h = ctx.canvas.height, data = historyData[index], sys = systems[index];
+                ctx.clearRect(0, 0, w, h);
+                const mapX = (t) => 30 + ((t - minT) / TIME_WINDOW) * (w - 40);
+                const mapY = (v) => (h - 20) - ((v - minV) / (maxV - minV || 1)) * (h - 30);
+                const zeroY = mapY(0);
+
+                ctx.strokeStyle = '#4a5568'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(30, 10); ctx.lineTo(30, h - 20);
+                ctx.moveTo(30, zeroY); ctx.lineTo(w - 10, zeroY); ctx.stroke();
+                
+                ctx.fillStyle = '#a0aec0'; ctx.font = '10px Arial'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+                
+                // 恢復刻度間距為 20
+                const step = 20; 
+                const startTick = Math.ceil(minV / step) * step; 
+                const endTick = Math.floor(maxV / step) * step;
+                
+                for (let v = startTick; v <= endTick; v += step) {
+                    const y = mapY(v); if (y < 10 || y > h - 20) continue;
+                    ctx.beginPath(); ctx.moveTo(27, y); ctx.lineTo(30, y); ctx.stroke(); ctx.fillText(Math.round(v), 25, y);
+                }
+                ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText('v', 20, 15); ctx.fillText(`t(${Math.floor(globalTime)}s)`, w - 40, zeroY + 12);
+                
+                if (data.length === 0) return;
+                const drawLine = (valFn, color, isDashed=false, lw=2) => {
+                    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lw;
+                    if(isDashed) ctx.setLineDash([4, 4]); else ctx.setLineDash([]);
+                    data.forEach((pt, i) => {
+                        const x = mapX(pt.t); if (x < 30) return;
+                        const y = mapY(valFn(pt)); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    });
+                    ctx.stroke(); ctx.setLineDash([]);
+                };
+                if (sys.isRevealed) {
+                    if (sys.balls.length > 1) drawLine(pt => pt.v_balls[1], '#68d391');
+                    if (sys.balls.length > 0) drawLine(pt => pt.v_balls[0], '#63b3ed');
+                }
+                drawLine(pt => pt.v_box, '#ecc94b');
+                if (showCM) drawLine(pt => pt.v_cm, '#fc8181', true, 3);
+            });
+        }
+
+        function handleCanvasClick(e, index) {
+            const rect = canvases[index].getBoundingClientRect();
+            const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top, sys = systems[index];
+            const drawBoxX = sys.box.x - cameraX, boxY = GROUND_Y - sys.box.h;
+            if (mouseX >= drawBoxX && mouseX <= drawBoxX + BOX_WIDTH && mouseY >= boxY && mouseY <= GROUND_Y) {
+                sys.isRevealed = !sys.isRevealed;
+                if (!isAnimating) { drawAll(); drawGraphs(); }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initDOM();
+            const startBtn = document.getElementById('startBtn'), reverseBtn = document.getElementById('reverseBtn'), cmBtn = document.getElementById('cmBtn'), resetBtn = document.getElementById('resetBtn');
+            const startF = (e) => { e.preventDefault(); isApplyingForce = true; if(!isAnimating){ isAnimating=true; lastTime=0; requestAnimationFrame(animate); }};
+            const stopF = (e) => { e.preventDefault(); isApplyingForce = false; };
+            const startR = (e) => { e.preventDefault(); isApplyingReverseForce = true; if(!isAnimating){ isAnimating=true; lastTime=0; requestAnimationFrame(animate); }};
+            const stopR = (e) => { e.preventDefault(); isApplyingReverseForce = false; };
+            startBtn.addEventListener('mousedown', startF); startBtn.addEventListener('mouseup', stopF); startBtn.addEventListener('mouseleave', stopF);
+            reverseBtn.addEventListener('mousedown', startR); reverseBtn.addEventListener('mouseup', stopR); reverseBtn.addEventListener('mouseleave', stopR);
+            startBtn.addEventListener('touchstart', startF); startBtn.addEventListener('touchend', stopF);
+            reverseBtn.addEventListener('touchstart', startR); reverseBtn.addEventListener('touchend', stopR);
+            cmBtn.addEventListener('click', () => { showCM = !showCM; cmBtn.innerText = `顯示質心 (${showCM ? '開' : '關'})`; if (!isAnimating) { drawAll(); drawGraphs(); } });
+            resetBtn.addEventListener('click', initSystems);
+            canvases.forEach((c, i) => { c.addEventListener('click', (e) => handleCanvasClick(e, i)); });
+            window.addEventListener('resize', resize);
+            initSystems(); resize();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>斜向拋射動畫</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f8ff; /* AliceBlue */
+            font-family: 'Inter', sans-serif;
+            color: #333;
+        }
+        .container {
+            position: relative; /* For positioning the time display */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px; /* Reduced gap */
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        #animationCanvas {
+            border: 1px solid #ddd;
+            background-color: #fdfdfd;
+            border-radius: 8px;
+        }
+        #timeDisplay {
+            position: absolute;
+            top: 30px;
+            right: 60px;
+            background-color: rgba(255, 255, 255, 0.85);
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            pointer-events: none; /* Make it non-interactive */
+        }
+        .controls, .trajectory-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 5px 10px; /* Reduced padding */
+            width: 100%;
+            max-width: 800px;
+            box-sizing: border-box;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        label {
+            font-weight: 500;
+        }
+        input[type="range"] {
+            width: 120px; /* Adjusted width */
+            cursor: pointer;
+        }
+        input[type="checkbox"] {
+            cursor: pointer;
+            transform: scale(1.2);
+            margin-right: -5px;
+        }
+        .value-span {
+            font-weight: bold;
+            color: #007bff;
+            min-width: 45px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            background-color: #6c757d; /* Gray */
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color: 0.3s ease, transform 0.1s ease;
+        }
+        button:hover {
+            background-color: #5a6268;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #a0c3e6;
+            cursor: not-allowed;
+        }
+        #startButton {
+            background-color: #007bff; /* Blue */
+        }
+        #startButton:hover {
+            background-color: #0056b3;
+        }
+        #clearButton {
+            background-color: #dc3545; /* Red */
+        }
+        #clearButton:hover {
+            background-color: #c82333;
+        }
+        button.active {
+            background-color: #28a745; /* Green */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        button.active:hover {
+             background-color: #218838;
+        }
+        .adjust-btn {
+            padding: 4px 10px;
+            font-size: 16px;
+            font-weight: bold;
+            line-height: 1;
+            min-width: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="animationCanvas" width="800" height="600"></canvas>
+        <div id="timeDisplay">時間: 0.00 s</div>
+        <div class="controls">
+            <div class="control-group">
+                <label for="velocitySlider">初速度:</label>
+                <input type="range" id="velocitySlider" min="1" max="25" value="15" step="1">
+                <span id="velocityValue" class="value-span">15.0 m/s</span>
+            </div>
+             <div class="control-group">
+                <label for="angleSlider">拋射角度:</label>
+                <button id="angleDecreaseBtn" class="adjust-btn" title="減少角度">-</button>
+                <input type="range" id="angleSlider" min="0" max="90" value="45" step="1">
+                <button id="angleIncreaseBtn" class="adjust-btn" title="增加角度">+</button>
+                <span id="angleValue" class="value-span">45.0 °</span>
+            </div>
+            <button id="startButton">發射</button>
+            <button id="toggleHorizontalBtn">顯示水平分量</button>
+            <button id="toggleVerticalBtn">顯示鉛直分量</button>
+            <button id="slowMotionBtn">慢動作</button>
+            <button id="resetButton">歸零</button>
+            <button id="clearButton">清除軌跡</button>
+        </div>
+        <div class="trajectory-controls">
+             <div class="control-group">
+                <input type="checkbox" id="showMainTrajectoryCheckbox" checked>
+                <label for="showMainTrajectoryCheckbox">顯示原軌跡</label>
+            </div>
+            <div class="control-group">
+                <input type="checkbox" id="showHorizontalTrajectoryCheckbox">
+                <label for="showHorizontalTrajectoryCheckbox">顯示水平軌跡</label>
+            </div>
+            <div class="control-group">
+                <input type="checkbox" id="showVerticalTrajectoryCheckbox">
+                <label for="showVerticalTrajectoryCheckbox">顯示鉛直軌跡</label>
+            </div>
+             <div class="control-group">
+                <input type="checkbox" id="pauseAtOneSecCheckbox">
+                <label for="pauseAtOneSecCheckbox">在1秒時暫停</label>
+            </div>
+            <div class="control-group">
+                <input type="checkbox" id="markIntervalCheckbox">
+                <label for="markIntervalCheckbox">每隔0.1秒標記位置</label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('animationCanvas');
+        const ctx = canvas.getContext('2d');
+        const velocitySlider = document.getElementById('velocitySlider');
+        const velocityValueSpan = document.getElementById('velocityValue');
+        const angleSlider = document.getElementById('angleSlider');
+        const angleValueSpan = document.getElementById('angleValue');
+        const angleDecreaseBtn = document.getElementById('angleDecreaseBtn');
+        const angleIncreaseBtn = document.getElementById('angleIncreaseBtn');
+        const startButton = document.getElementById('startButton');
+        const toggleHorizontalBtn = document.getElementById('toggleHorizontalBtn');
+        const toggleVerticalBtn = document.getElementById('toggleVerticalBtn');
+        const slowMotionBtn = document.getElementById('slowMotionBtn');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const pauseAtOneSecCheckbox = document.getElementById('pauseAtOneSecCheckbox');
+        const markIntervalCheckbox = document.getElementById('markIntervalCheckbox');
+        const showMainTrajectoryCheckbox = document.getElementById('showMainTrajectoryCheckbox');
+        const showHorizontalTrajectoryCheckbox = document.getElementById('showHorizontalTrajectoryCheckbox');
+        const showVerticalTrajectoryCheckbox = document.getElementById('showVerticalTrajectoryCheckbox');
+        const resetButton = document.getElementById('resetButton');
+        const clearButton = document.getElementById('clearButton');
+
+        const initialX = 50, initialY = canvas.height - 50;
+        let ball = {
+            pixelX: initialX, pixelY: initialY, radius: 10,
+            color: '#dc3545',
+            vx: 0, vy: 0,
+        };
+        
+        let initialSpeed = parseFloat(velocitySlider.value);
+        let launchAngle = parseFloat(angleSlider.value);
+
+        const GRAVITY_ACCELERATION = 9.8;
+        const PPM = 15; // Pixels per meter (Adjusted from 20 to 15 to show more range)
+        const vectorScale = 8;
+        let isAnimating = false;
+        let showHorizontal = false;
+        let showVertical = false;
+        let isSlowMotion = false;
+        let isPaused = false;
+        let simulationTime = 0;
+        
+        // --- 軌跡儲存 ---
+        let trajectoryPoints = [];
+        let timeMarkedPoints = [];
+        let horizontalMarkedPoints = [];
+        let verticalMarkedPoints = [];
+        let lastMarkTime = 0;
+        let currentLaunchParams = {};
+
+        // --- 歷史軌跡儲存 ---
+        let history = [];
+
+        // --- Event Listeners ---
+        function handleSliderInput() {
+            if (!isAnimating && trajectoryPoints.length > 1) {
+                history.push({
+                    points: trajectoryPoints,
+                    timeMarks: timeMarkedPoints,
+                    hMarks: horizontalMarkedPoints,
+                    vMarks: verticalMarkedPoints,
+                    params: currentLaunchParams
+                });
+                // Reset current trajectory to switch to 'preview' mode
+                trajectoryPoints = [];
+                timeMarkedPoints = [];
+                horizontalMarkedPoints = [];
+                verticalMarkedPoints = [];
+                currentLaunchParams = {};
+            }
+        }
+
+        velocitySlider.addEventListener('input', (e) => {
+            initialSpeed = parseFloat(e.target.value);
+            velocityValueSpan.textContent = `${initialSpeed.toFixed(1)} m/s`;
+            handleSliderInput();
+        });
+        
+        angleSlider.addEventListener('input', (e) => {
+            launchAngle = parseFloat(e.target.value);
+            angleValueSpan.textContent = `${launchAngle.toFixed(1)} °`;
+            handleSliderInput();
+        });
+
+        angleDecreaseBtn.addEventListener('click', () => {
+            let currentValue = parseInt(angleSlider.value);
+            if (currentValue > angleSlider.min) {
+                angleSlider.value = currentValue - 1;
+                angleSlider.dispatchEvent(new Event('input'));
+            }
+        });
+
+        angleIncreaseBtn.addEventListener('click', () => {
+            let currentValue = parseInt(angleSlider.value);
+            if (currentValue < angleSlider.max) {
+                angleSlider.value = currentValue + 1;
+                angleSlider.dispatchEvent(new Event('input'));
+            }
+        });
+
+        startButton.addEventListener('click', () => {
+            if (!isAnimating) {
+                if (trajectoryPoints.length > 1) {
+                    history.push({
+                        points: trajectoryPoints,
+                        timeMarks: timeMarkedPoints,
+                        hMarks: horizontalMarkedPoints,
+                        vMarks: verticalMarkedPoints,
+                        params: currentLaunchParams
+                    });
+                }
+
+                isAnimating = true; isPaused = false; simulationTime = 0; lastMarkTime = 0;
+                ball.pixelX = initialX; ball.pixelY = initialY;
+                
+                currentLaunchParams = { speed: initialSpeed, angle: launchAngle };
+                const angleRad = currentLaunchParams.angle * Math.PI / 180;
+                ball.vx = currentLaunchParams.speed * Math.cos(angleRad);
+                ball.vy = currentLaunchParams.speed * Math.sin(angleRad); // Y向上為正，初速度為正
+                
+                trajectoryPoints = [{ x: ball.pixelX, y: ball.pixelY }];
+                timeMarkedPoints = [];
+                horizontalMarkedPoints = [];
+                verticalMarkedPoints = [];
+                velocitySlider.disabled = true;
+                angleSlider.disabled = true;
+                timeDisplay.textContent = `時間: 0.00 s`;
+                startButton.textContent = '暫停';
+            } else {
+                isPaused = !isPaused;
+                startButton.textContent = isPaused ? '繼續' : '暫停';
+            }
+        });
+        
+        clearButton.addEventListener('click', () => {
+            history = [];
+            resetSimulation();
+        });
+
+        toggleHorizontalBtn.addEventListener('click', () => {
+            showHorizontal = !showHorizontal;
+            toggleHorizontalBtn.classList.toggle('active');
+        });
+
+        toggleVerticalBtn.addEventListener('click', () => {
+            showVertical = !showVertical;
+            toggleVerticalBtn.classList.toggle('active');
+        });
+        
+        slowMotionBtn.addEventListener('click', () => {
+            isSlowMotion = !isSlowMotion;
+            slowMotionBtn.classList.toggle('active');
+        });
+
+        resetButton.addEventListener('click', resetSimulation);
+
+        // --- Drawing Functions ---
+        function drawAxes() {
+            ctx.save();
+            ctx.strokeStyle = '#adb5bd';
+            ctx.fillStyle = '#6c757d';
+            ctx.lineWidth = 1.5;
+
+            // X-axis (ground)
+            ctx.beginPath(); ctx.moveTo(0, initialY); ctx.lineTo(canvas.width, initialY); ctx.stroke();
+            ctx.font = '16px Inter'; ctx.fillText('x', canvas.width - 25, initialY - 15);
+            
+            // Y-axis (vertical)
+            ctx.beginPath(); ctx.moveTo(initialX, 0); ctx.lineTo(initialX, canvas.height); ctx.stroke();
+            ctx.fillText('y', initialX + 15, 15);
+
+            // Ticks and labels
+            ctx.font = '12px Inter';
+            for (let i = 1; (initialX + i * PPM) < canvas.width; i++) {
+                const x = initialX + i * PPM;
+                ctx.beginPath(); ctx.moveTo(x, initialY - 5); ctx.lineTo(x, initialY + 5); ctx.stroke();
+                ctx.fillText(i, x - (i < 10 ? 3 : 7), initialY + 20);
+            }
+            for (let i = 1; (initialY - i * PPM) > 0; i++) {
+                const y = initialY - i * PPM;
+                ctx.beginPath(); ctx.moveTo(initialX - 5, y); ctx.lineTo(initialX + 5, y); ctx.stroke();
+                ctx.fillText(i, initialX - 25, y + 4);
+            }
+            ctx.restore();
+        }
+
+        function drawAllTrajectoriesAndLabels() {
+            ctx.save();
+            // 1. 繪製歷史軌跡與標籤
+            history.forEach(hist => {
+                if (!hist.points || hist.points.length < 2) return;
+                
+                ctx.beginPath();
+                ctx.moveTo(hist.points[0].x, hist.points[0].y);
+                hist.points.forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.strokeStyle = 'rgba(0, 123, 255, 0.25)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                if (hist.params && showMainTrajectoryCheckbox.checked) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.font = '12px Inter';
+                    const label = `v₀=${hist.params.speed.toFixed(1)}, θ=${hist.params.angle.toFixed(0)}°`;
+                    const peak = hist.points.reduce((a, b) => a.y < b.y ? a : b, {y: Infinity});
+                    if(peak.y !== Infinity) {
+                        ctx.textAlign = 'center';
+                        ctx.fillText(label, peak.x, peak.y - 15);
+                    }
+                }
+            });
+
+            // 2. 繪製當前軌跡 (無論是正在進行中還是剛完成)
+            if (trajectoryPoints.length >= 2) {
+                if (showMainTrajectoryCheckbox.checked) {
+                    ctx.beginPath();
+                    ctx.moveTo(trajectoryPoints[0].x, trajectoryPoints[0].y);
+                    trajectoryPoints.forEach(p => ctx.lineTo(p.x, p.y));
+                    
+                    ctx.strokeStyle = 'rgba(0, 123, 255, 0.7)';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    if (!isAnimating && currentLaunchParams.speed) {
+                         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                         ctx.font = '12px Inter';
+                         const label = `v₀=${currentLaunchParams.speed.toFixed(1)}, θ=${currentLaunchParams.angle.toFixed(0)}°`;
+                         const peak = trajectoryPoints.reduce((a, b) => a.y < b.y ? a : b, {y: Infinity});
+                         if(peak.y !== Infinity) {
+                             ctx.textAlign = 'center';
+                             ctx.fillText(label, peak.x, peak.y - 15);
+                         }
+                    }
+                }
+            }
+            ctx.restore();
+        }
+        
+        function drawVector(startX, startY, vx, vy, color, label) {
+            const endX = startX + vx * vectorScale;
+            const endY = startY - vy * vectorScale; // Y向上為正，畫布Y向下，故用減法
+            ctx.save();
+            ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY);
+            ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+            const headlen = 10;
+            const angle = Math.atan2(endY - startY, endX - startX);
+            ctx.beginPath(); ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.lineTo(endX, endY);
+            ctx.fillStyle = color; ctx.fill();
+            ctx.font = 'bold 14px Inter'; ctx.fillText(label, endX + 10, endY);
+            ctx.restore();
+        }
+
+        function drawProjectedTrajectories() {
+            if (!isAnimating || trajectoryPoints.length < 2) return;
+            ctx.save();
+            ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+
+            if (showHorizontalTrajectoryCheckbox.checked) {
+                ctx.beginPath(); ctx.moveTo(trajectoryPoints[0].x, initialY);
+                ctx.lineTo(ball.pixelX, initialY);
+                ctx.strokeStyle = 'rgba(40, 167, 69, 0.7)'; ctx.stroke();
+            }
+            if (showVerticalTrajectoryCheckbox.checked) {
+                ctx.beginPath(); ctx.moveTo(initialX, trajectoryPoints[0].y);
+                ctx.lineTo(initialX, ball.pixelY);
+                ctx.strokeStyle = 'rgba(156, 39, 176, 0.7)'; ctx.stroke();
+            }
+            ctx.restore();
+        }
+        
+        function drawGhostBallsAndGuides() {
+            if (!isAnimating) return;
+            const ghostColor = 'rgba(220, 53, 69, 0.5)';
+            ctx.save(); ctx.setLineDash([5, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(108, 117, 125, 0.7)';
+
+            if (showHorizontalTrajectoryCheckbox.checked) {
+                ctx.beginPath(); ctx.arc(ball.pixelX, initialY, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ghostColor; ctx.fill();
+                if (showMainTrajectoryCheckbox.checked) {
+                    ctx.beginPath(); ctx.moveTo(ball.pixelX, ball.pixelY); ctx.lineTo(ball.pixelX, initialY); ctx.stroke();
+                }
+            }
+            if (showVerticalTrajectoryCheckbox.checked) {
+                ctx.beginPath(); ctx.arc(initialX, ball.pixelY, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ghostColor; ctx.fill();
+                if (showMainTrajectoryCheckbox.checked) {
+                    ctx.beginPath(); ctx.moveTo(ball.pixelX, ball.pixelY); ctx.lineTo(initialX, ball.pixelY); ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawAllTimeMarks() {
+            if (!markIntervalCheckbox.checked) return;
+            ctx.save();
+            // 1. 繪製歷史標記
+            history.forEach(hist => {
+                if (showMainTrajectoryCheckbox.checked && hist.timeMarks) {
+                    ctx.fillStyle = 'rgba(33, 37, 41, 0.3)';
+                    hist.timeMarks.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+                }
+                if (showHorizontalTrajectoryCheckbox.checked && hist.hMarks) {
+                    ctx.fillStyle = 'rgba(40, 167, 69, 0.3)';
+                    hist.hMarks.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+                }
+                if (showVerticalTrajectoryCheckbox.checked && hist.vMarks) {
+                    ctx.fillStyle = 'rgba(156, 39, 176, 0.3)';
+                    hist.vMarks.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+                }
+            });
+
+            // 2. 繪製當前軌跡的標記
+            if (trajectoryPoints.length > 1) {
+                const mainColor = '#212529';
+                const hColor = 'rgba(40, 167, 69, 0.9)';
+                const vColor = 'rgba(156, 39, 176, 0.9)';
+
+                if (showMainTrajectoryCheckbox.checked) {
+                    ctx.fillStyle = mainColor;
+                    timeMarkedPoints.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+                }
+                if (showHorizontalTrajectoryCheckbox.checked) {
+                    ctx.fillStyle = hColor;
+                    horizontalMarkedPoints.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+                }
+                if (showVerticalTrajectoryCheckbox.checked) {
+                    ctx.fillStyle = vColor;
+                    verticalMarkedPoints.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawWatermark() {
+            ctx.save();
+            ctx.font = '16px Inter'; ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+            ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+            ctx.fillText('平鎮高中', canvas.width - 20, canvas.height - 15);
+            ctx.restore();
+        }
+
+        function drawLaunchAngle() {
+            if (launchAngle <= 0) return;
+            const angleRad = launchAngle * Math.PI / 180;
+            const arcAngle = -angleRad; // 畫布Y軸向下，角度需為負才能向上畫
+            const arcRadius = 40;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(initialX + arcRadius, initialY);
+            ctx.arc(initialX, initialY, arcRadius, 0, arcAngle, true); // true for counter-clockwise
+            ctx.strokeStyle = 'rgba(108, 117, 125, 0.8)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.stroke();
+            
+            const textAngle = arcAngle / 2; 
+            const textRadius = arcRadius + 15;
+            const textX = initialX + textRadius * Math.cos(textAngle);
+            const textY = initialY + textRadius * Math.sin(textAngle);
+            ctx.fillStyle = '#6c757d'; ctx.font = '15px Inter';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(`${launchAngle.toFixed(0)}°`, textX, textY);
+            ctx.restore();
+        }
+
+        function resetSimulation() {
+            isAnimating = false; isPaused = false;
+            simulationTime = 0; lastMarkTime = 0;
+            ball.pixelX = initialX; ball.pixelY = initialY;
+            trajectoryPoints = []; timeMarkedPoints = [];
+            horizontalMarkedPoints = []; verticalMarkedPoints = [];
+            currentLaunchParams = {};
+            velocitySlider.disabled = false; angleSlider.disabled = false;
+            startButton.textContent = '發射';
+            timeDisplay.textContent = `時間: 0.00 s`;
+            if (showHorizontal) { showHorizontal = false; toggleHorizontalBtn.classList.remove('active'); }
+            if (showVertical) { showVertical = false; toggleVerticalBtn.classList.remove('active'); }
+            if (isSlowMotion) { isSlowMotion = false; slowMotionBtn.classList.remove('active'); }
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawAxes();
+
+            // --- 物理更新 ---
+            if (isAnimating && !isPaused) {
+                const speedMultiplier = isSlowMotion ? 0.2 : 1.0;
+                const dt = (1 / 60) * speedMultiplier;
+                const prevSimTime = simulationTime;
+                simulationTime += dt;
+                timeDisplay.textContent = `時間: ${simulationTime.toFixed(2)} s`;
+
+                ball.vy -= GRAVITY_ACCELERATION * dt; // Y向上為正，重力加速度為負
+                ball.pixelX += (ball.vx * PPM) * dt;
+                ball.pixelY -= (ball.vy * PPM) * dt; // Y向上為正，畫布Y向下，故用減法
+                trajectoryPoints.push({ x: ball.pixelX, y: ball.pixelY });
+
+                if (markIntervalCheckbox.checked && simulationTime >= lastMarkTime + 0.1) {
+                    timeMarkedPoints.push({ x: ball.pixelX, y: ball.pixelY });
+                    horizontalMarkedPoints.push({ x: ball.pixelX, y: initialY });
+                    verticalMarkedPoints.push({ x: initialX, y: ball.pixelY });
+                    lastMarkTime += 0.1;
+                }
+
+                if (pauseAtOneSecCheckbox.checked && simulationTime >= 1.0 && prevSimTime < 1.0) {
+                    isPaused = true; startButton.textContent = '繼續';
+                }
+
+                if (ball.pixelY > initialY) { // 當球的畫布Y座標大於地面時，代表落地
+                    isAnimating = false; isPaused = false;
+                    velocitySlider.disabled = false; angleSlider.disabled = false;
+                    startButton.textContent = '發射';
+                }
+            }
+            
+            // --- 繪圖邏輯 ---
+            drawAllTrajectoriesAndLabels();
+            drawAllTimeMarks();
+
+            if (isAnimating) {
+                // 狀態: 動畫進行中
+                drawProjectedTrajectories();
+                drawGhostBallsAndGuides();
+
+                const posX = ball.pixelX, posY = ball.pixelY;
+                const vx = ball.vx, vy = ball.vy;
+
+                if (showMainTrajectoryCheckbox.checked) {
+                    const totalVelocity = Math.sqrt(vx**2 + vy**2);
+                    drawVector(posX, posY, vx, vy, '#ff9800', `${totalVelocity.toFixed(1)} m/s`);
+                    if (showHorizontal) drawVector(posX, posY, vx, 0, '#28a745', `${vx.toFixed(1)} m/s`);
+                    if (showVertical) drawVector(posX, posY, 0, vy, '#9c27b0', `${vy.toFixed(1)} m/s`);
+                }
+                if (showHorizontalTrajectoryCheckbox.checked && showHorizontal) drawVector(posX, initialY, vx, 0, '#28a745', `${vx.toFixed(1)} m/s`);
+                if (showVerticalTrajectoryCheckbox.checked && showVertical) drawVector(initialX, posY, 0, vy, '#9c27b0', `${vy.toFixed(1)} m/s`);
+                
+                if (showMainTrajectoryCheckbox.checked) {
+                    ctx.beginPath(); ctx.arc(posX, posY, ball.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = ball.color; ctx.fill(); ctx.closePath();
+                }
+
+            } else {
+                // 狀態: 閒置 (發射前 或 剛降落)
+                if (trajectoryPoints.length > 1) {
+                    // 狀態: 剛降落，顯示最終位置和向量
+                    const lastPoint = trajectoryPoints[trajectoryPoints.length - 1];
+                    const vx = ball.vx;
+                    const vy = ball.vy;
+                    const ghostColor = 'rgba(220, 53, 69, 0.5)';
+
+                    if (showHorizontalTrajectoryCheckbox.checked) {
+                        ctx.beginPath(); ctx.arc(lastPoint.x, initialY, ball.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = ghostColor; ctx.fill();
+                        if (showHorizontal) drawVector(lastPoint.x, initialY, vx, 0, '#28a745', `${vx.toFixed(1)} m/s`);
+                    }
+                     if (showVerticalTrajectoryCheckbox.checked) {
+                        ctx.beginPath(); ctx.arc(initialX, lastPoint.y, ball.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = ghostColor; ctx.fill();
+                        if (showVertical) drawVector(initialX, lastPoint.y, 0, vy, '#9c27b0', `${vy.toFixed(1)} m/s`);
+                    }
+
+                    if (showMainTrajectoryCheckbox.checked) {
+                        ctx.beginPath(); ctx.arc(lastPoint.x, lastPoint.y, ball.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(220, 53, 69, 0.6)'; ctx.fill(); ctx.closePath();
+
+                        const totalVelocity = Math.sqrt(vx**2 + vy**2);
+                        drawVector(lastPoint.x, lastPoint.y, vx, vy, '#ff9800', `${totalVelocity.toFixed(1)} m/s`);
+                        if (showHorizontal) drawVector(lastPoint.x, lastPoint.y, vx, 0, '#28a745', `${vx.toFixed(1)} m/s`);
+                        if (showVertical) drawVector(lastPoint.x, lastPoint.y, 0, vy, '#9c27b0', `${vy.toFixed(1)} m/s`);
+                    }
+                } else {
+                    // 狀態: 發射前，顯示預覽
+                    drawLaunchAngle();
+                    const angleRad = launchAngle * Math.PI / 180;
+                    const initialVx = initialSpeed * Math.cos(angleRad);
+                    const initialVy = initialSpeed * Math.sin(angleRad); // Y向上為正
+                    
+                    if (showMainTrajectoryCheckbox.checked) {
+                        ctx.beginPath(); ctx.arc(initialX, initialY, ball.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = ball.color; ctx.fill(); ctx.closePath();
+                        
+                        const totalVelocity = Math.sqrt(initialVx**2 + initialVy**2);
+                        drawVector(initialX, initialY, initialVx, initialVy, '#ff9800', `${totalVelocity.toFixed(1)} m/s`);
+                        if (showHorizontal) drawVector(initialX, initialY, initialVx, 0, '#28a745', `${initialVx.toFixed(1)} m/s`);
+                        if (showVertical) drawVector(initialX, initialY, 0, initialVy, '#9c27b0', `${initialVy.toFixed(1)} m/s`);
+                    }
+                }
+            }
+            
+            drawWatermark();
+            requestAnimationFrame(gameLoop);
+        }
+
+        velocityValueSpan.textContent = `${initialSpeed.toFixed(1)} m/s`;
+        angleValueSpan.textContent = `${launchAngle.toFixed(1)} °`;
+        gameLoop();
+    </script>
+</body>
+</html>
