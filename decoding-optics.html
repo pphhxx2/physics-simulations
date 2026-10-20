@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>實像與虛像：光路與大腦感知</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+        }
+        .canvas-container {
+            position: relative;
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <header class="bg-indigo-600 text-white py-3 px-4 shadow-md">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <h1 class="text-base sm:text-lg font-bold">實像與虛像：光路與大腦感知</h1>
+            <div class="flex items-center gap-2">
+                <!-- 新增：隱藏的四宮格比較按鈕 -->
+                <button id="btnShowAll" onclick="toggleGridView()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs sm:text-sm px-3.5 py-1.5 rounded-xl shadow transition active:scale-95 flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    <span>四鏡綜合比較</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full">
+        <!-- 新增包裝層：將原本的雙視圖包起來 -->
+        <div id="dualView" class="w-full grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <!-- 1. 正常視覺成像 -->
+            <div class="canvas-container p-4 flex flex-col justify-between border border-slate-100 h-[380px]">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+                    <h2 class="font-bold text-sm text-slate-700 flex items-center gap-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                        正常視覺成像
+                    </h2>
+                    <span class="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">眼球視網膜</span>
+                </div>
+                
+                <div class="relative w-full flex-grow bg-slate-900 rounded-lg overflow-hidden">
+                    <canvas id="canvasNormal" class="w-full h-full block"></canvas>
+                </div>
+                <!-- 底部留空以對齊右側 -->
+                <div class="mt-3 flex justify-end items-center text-xs h-[28px]">
+                </div>
+            </div>
+
+            <!-- 2. 互動與鏡子切換區 -->
+            <div class="canvas-container p-4 flex flex-col justify-between border border-slate-100 h-[380px]">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+                    <h2 id="interactiveTitle" class="font-bold text-sm text-slate-700 flex items-center gap-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" id="activeIndicator"></span>
+                        <span id="interactiveTitleText">人眼看到的</span>
+                    </h2>
+                    <div class="flex flex-wrap gap-1 text-[11px]">
+                        <button onclick="switchMode(1)" id="btn1" class="px-2 py-0.5 rounded font-medium bg-amber-500 text-white transition">狀況 A</button>
+                        <button onclick="switchMode(2)" id="btn2" class="px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">狀況 B</button>
+                        <button onclick="switchMode(3)" id="btn3" class="px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">狀況 C</button>
+                        <button onclick="switchMode(4)" id="btn4" class="px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">狀況 D</button>
+                    </div>
+                </div>
+
+                <div class="relative w-full flex-grow bg-slate-900 rounded-lg overflow-hidden cursor-pointer" onclick="toggleActiveRay()">
+                    <canvas id="canvasInteractive" class="w-full h-full block"></canvas>
+                    <!-- 黃框感知區：加入轉場效果與ID標籤 -->
+                    <div id="perceptionBox" class="absolute top-[4%] left-[4%] w-[48%] h-[92%] rounded-lg pointer-events-none flex p-1 transition-all duration-500 ease-in-out border-2 border-amber-400 border-solid bg-amber-400/10 shadow-[0_0_8px_rgba(251,191,36,0.4)]">
+                        <span id="perceptionLabel" class="text-[9px] font-bold px-1.5 py-0.5 h-fit rounded transition-all duration-500 bg-amber-400 text-slate-900">大腦感知</span>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex justify-end items-center text-xs h-[28px]">
+                    <button onclick="toggleActiveRay()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded transition">切換光路</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新增：四宮格比較視圖 (預設隱藏) -->
+        <div id="gridView" class="hidden w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- 1. 平面鏡 -->
+            <div class="canvas-container p-3 flex flex-col justify-between border border-slate-100 h-[280px]">
+                <h2 class="font-bold text-sm text-slate-700 flex items-center gap-1.5 mb-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>平面鏡
+                </h2>
+                <div class="relative w-full flex-grow bg-slate-900 rounded-lg overflow-hidden">
+                    <canvas id="canvasGrid1" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+            <!-- 2. 凹透鏡 -->
+            <div class="canvas-container p-3 flex flex-col justify-between border border-slate-100 h-[280px]">
+                <h2 class="font-bold text-sm text-slate-700 flex items-center gap-1.5 mb-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span>凹透鏡
+                </h2>
+                <div class="relative w-full flex-grow bg-slate-900 rounded-lg overflow-hidden">
+                    <canvas id="canvasGrid2" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+            <!-- 3. 凸透鏡實像 -->
+            <div class="canvas-container p-3 flex flex-col justify-between border border-slate-100 h-[280px]">
+                <h2 class="font-bold text-sm text-slate-700 flex items-center gap-1.5 mb-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block"></span>凸透鏡(實像)
+                </h2>
+                <div class="relative w-full flex-grow bg-slate-900 rounded-lg overflow-hidden">
+                    <canvas id="canvasGrid3" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+            <!-- 4. 凸透鏡虛像 -->
+            <div class="canvas-container p-3 flex flex-col justify-between border border-slate-100 h-[280px]">
+                <h2 class="font-bold text-sm text-slate-700 flex items-center gap-1.5 mb-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block"></span>凸透鏡(虛像)
+                </h2>
+                <div class="relative w-full flex-grow bg-slate-900 rounded-lg overflow-hidden">
+                    <canvas id="canvasGrid4" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        let normalRayShown = true;
+        let currentMode = 1;
+        let activeRayShown = false;
+        let transitionProgress = 0;
+        let animationFrameId = null;
+        let revealedModes = { 1: false, 2: false, 3: false, 4: false }; // 新增：個別記錄每個狀況是否已解開
+
+        const modeConfigs = {
+            1: { name: '平面鏡成像', btnName: '平面鏡', color: '#f59e0b', desc: '大腦感知範圍 (左半邊)' },
+            2: { name: '凹透鏡成像', btnName: '凹透鏡', color: '#c084fc', desc: '大腦感知範圍 (左半邊)' },
+            3: { name: '凸透鏡實像', btnName: '凸透鏡(實像)', color: '#60a5fa', desc: '大腦感知範圍 (左半邊)' },
+            4: { name: '凸透鏡虛像', btnName: '凸透鏡(虛像)', color: '#fb7185', desc: '大腦感知範圍 (左半邊)' }
+        };
+
+        function drawObject(ctx, x, y, height, label, color = '#38bdf8', isUpright = true) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 2;
+            const h = isUpright ? height : -height;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x, y - h);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(x, y - h);
+            ctx.lineTo(x - 4, y - h + (isUpright ? 8 : -8));
+            ctx.lineTo(x + 4, y - h + (isUpright ? 8 : -8));
+            ctx.closePath();
+            ctx.fill();
+
+            if (label) {
+                ctx.font = '10px Inter, sans-serif';
+                ctx.fillStyle = '#94a3b8';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, x, y + (isUpright ? 14 : -8));
+            }
+            ctx.restore();
+        }
+
+        function drawEye(ctx, eyeCenterX, cy, eyeRadius, retinaX, showRetinaImage = true, imgHeight = 20, imgColor = '#34d399', isUpright = false) {
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(eyeCenterX, cy, eyeRadius, -Math.PI * 0.65, Math.PI * 0.65, false);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#34d399'; ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(eyeCenterX, cy, eyeRadius - 2, -Math.PI * 0.38, Math.PI * 0.38, false);
+            ctx.stroke();
+
+            const lensX = eyeCenterX - eyeRadius + 12;
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.25)'; ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(lensX, cy, 6, 24, 0, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+
+            if (showRetinaImage) {
+                drawObject(ctx, retinaX, cy, imgHeight, '像', imgColor, isUpright);
+            }
+        }
+
+        function drawNormalModel(ctx, width, height, showRays) {
+            ctx.clearRect(0, 0, width, height);
+            const cy = height / 2;
+            const objX = width * 0.18;
+            const eyeCenterX = width * 0.65;
+            const eyeRadius = 52;
+            const retinaX = eyeCenterX + eyeRadius * 0.75;
+
+            ctx.strokeStyle = '#334155'; ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(20, cy); ctx.lineTo(width - 20, cy); ctx.stroke();
+            ctx.setLineDash([]);
+
+            const lensX = eyeCenterX - eyeRadius + 12;
+            drawEye(ctx, eyeCenterX, cy, eyeRadius, retinaX, showRays, 20, '#34d399', false);
+            drawObject(ctx, objX, cy, 26, '物', '#38bdf8', true);
+
+            if (showRays) {
+                ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(lensX, cy - 8); ctx.lineTo(retinaX, cy + 20); ctx.stroke();
+                ctx.strokeStyle = '#60a5fa';
+                ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(lensX, cy + 8); ctx.lineTo(retinaX, cy + 20); ctx.stroke();
+            } else {
+                drawObject(ctx, retinaX, cy, 20, '?', '#34d399', false);
+            }
+        }
+
+        // 加入 overrideMode 參數，讓四宮格模式可以指定畫哪一種狀況
+        function drawInteractiveScene(ctx, width, height, progress, overrideMode = null) {
+            const drawMode = overrideMode !== null ? overrideMode : currentMode;
+            ctx.clearRect(0, 0, width, height);
+            const cy = height / 2;
+            const objX = width * 0.18;
+            const eyeCenterX = width * 0.75;
+            const eyeRadius = 52;
+            const retinaX = eyeCenterX + eyeRadius * 0.75;
+            const lensX = eyeCenterX - eyeRadius + 12;
+
+            // 1. 畫格線 (永遠保持不透明)
+            ctx.globalAlpha = 1.0;
+            ctx.strokeStyle = '#334155'; ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(20, cy); ctx.lineTo(width - 20, cy); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 2. 畫右側眼球與視網膜內部光路 (永遠保持不透明)
+            drawEye(ctx, eyeCenterX, cy, eyeRadius, retinaX, true, 26, '#34d399', false);
+            ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(lensX, cy - 15); ctx.lineTo(retinaX, cy + 26); ctx.stroke();
+            ctx.strokeStyle = '#60a5fa';
+            ctx.beginPath(); ctx.moveTo(lensX, cy + 15); ctx.lineTo(retinaX, cy + 26); ctx.stroke();
+
+            // 3. 畫「大腦錯覺」的直進光路 (點擊後會漸漸淡出)
+            if (progress < 1.0) {
+                ctx.globalAlpha = 1.0 - progress;
+                ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(lensX, cy - 15); ctx.stroke();
+                ctx.strokeStyle = '#60a5fa';
+                ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(lensX, cy + 15); ctx.stroke();
+            }
+
+            // 4. 畫「感知到的像」(切換時透明度漸變、名稱也會切換)
+            let targetObjAlpha = (drawMode === 3) ? 0.6 : 0.3;
+            ctx.globalAlpha = 1.0 - progress * (1.0 - targetObjAlpha);
+            let labels = {1: '虛像', 2: '縮小虛像', 3: '正立實像', 4: '放大虛像'};
+            let currentLabel = progress > 0.5 ? labels[drawMode] : '物';
+            drawObject(ctx, objX, cy, 26, currentLabel, '#38bdf8', true);
+
+            // 5. 畫「真實物件、透鏡與真實光路」(點擊後漸漸淡入)
+            if (progress > 0) {
+                ctx.globalAlpha = progress;
+                const getIntersectionY = (vx, vy, lx, ly, targetX) => vy + (ly - vy) * (targetX - vx) / (lx - vx);
+
+                if (drawMode === 1) {
+                    const mirrorX = width * 0.35; 
+                    const getIntersection = (vx, vy, lx, ly) => {
+                        const t = (mirrorX + cy - vx - vy) / (lx - vx + ly - vy);
+                        return { x: vx + t * (lx - vx), y: vy + t * (ly - vy) };
+                    };
+                    const redHit = getIntersection(objX, cy - 26, lensX, cy - 15);
+                    const blueHit = getIntersection(objX, cy - 26, lensX, cy + 15);
+
+                    const tipF = objX + (cy - 26) - (mirrorX + cy);
+                    const realTipX = objX - tipF;
+                    const realTipY = (cy - 26) - tipF;
+                    const baseF = objX + cy - (mirrorX + cy);
+                    const realBaseX = objX - baseF;
+                    const realBaseY = cy - baseF;
+
+                    ctx.save();
+                    ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(realBaseX, realBaseY); ctx.lineTo(realTipX, realTipY); ctx.stroke();
+
+                    const dx = realTipX - realBaseX, dy = realTipY - realBaseY;
+                    const len = Math.sqrt(dx*dx + dy*dy);
+                    const ux = dx / len, uy = dy / len;
+                    const arrowLen = 8, arrowHalf = 4;
+                    const backX = realTipX - ux * arrowLen, backY = realTipY - uy * arrowLen;
+                    ctx.beginPath(); ctx.moveTo(realTipX, realTipY);
+                    ctx.lineTo(backX - uy * arrowHalf, backY + ux * arrowHalf);
+                    ctx.lineTo(backX + uy * arrowHalf, backY - ux * arrowHalf);
+                    ctx.closePath(); ctx.fill();
+
+                    ctx.font = '10px Inter, sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center';
+                    ctx.fillText('真實物', realBaseX + 15, realBaseY + 15);
+                    ctx.restore();
+
+                    ctx.save();
+                    ctx.translate(mirrorX, cy); ctx.rotate(Math.PI / 4); 
+                    ctx.strokeStyle = '#00ff00'; ctx.fillStyle = 'rgba(0, 255, 0, 0.15)'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.rect(-6, -60, 12, 120); ctx.fill(); ctx.stroke();
+                    ctx.font = 'bold 16px "Noto Sans TC", sans-serif'; ctx.fillStyle = '#00ff00'; ctx.textAlign = 'center';
+                    ctx.fillText('平面鏡', -20, -70);
+                    ctx.restore();
+
+                    ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(realTipX, realTipY); ctx.lineTo(redHit.x, redHit.y); ctx.lineTo(lensX, cy - 15); ctx.stroke();
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.beginPath(); ctx.moveTo(realTipX, realTipY); ctx.lineTo(blueHit.x, blueHit.y); ctx.lineTo(lensX, cy + 15); ctx.stroke();
+
+                    ctx.strokeStyle = '#f87171'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(redHit.x, redHit.y); ctx.stroke();
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(blueHit.x, blueHit.y); ctx.stroke();
+                    ctx.setLineDash([]);
+
+                } else if (drawMode === 2) {
+                    const deviceX = width * 0.45; 
+                    const realObjX = width * 0.08; 
+                    const realTipY = cy - 42;      
+                    const redHitY = getIntersectionY(objX, cy - 26, lensX, cy - 15, deviceX);
+                    const blueHitY = getIntersectionY(objX, cy - 26, lensX, cy + 15, deviceX);
+
+                    drawObject(ctx, realObjX, cy, Math.abs(cy - realTipY), '真實物', '#38bdf8', true);
+
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(192, 132, 252, 0.15)'; ctx.strokeStyle = '#c084fc'; ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(deviceX - 8, cy - 55); ctx.lineTo(deviceX + 8, cy - 55);
+                    ctx.quadraticCurveTo(deviceX + 2, cy, deviceX + 8, cy + 55); 
+                    ctx.lineTo(deviceX - 8, cy + 55);
+                    ctx.quadraticCurveTo(deviceX - 2, cy, deviceX - 8, cy - 55); 
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+                    ctx.font = 'bold 16px "Noto Sans TC", sans-serif'; ctx.fillStyle = '#c084fc'; ctx.textAlign = 'center';
+                    ctx.fillText('凹透鏡', deviceX, cy - 65);
+                    ctx.restore();
+
+                    ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(realObjX, realTipY); ctx.lineTo(deviceX, redHitY); ctx.lineTo(lensX, cy - 15); ctx.stroke();
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.beginPath(); ctx.moveTo(realObjX, realTipY); ctx.lineTo(deviceX, blueHitY); ctx.lineTo(lensX, cy + 15); ctx.stroke();
+
+                    ctx.strokeStyle = '#f87171'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(deviceX, redHitY); ctx.stroke();
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(deviceX, blueHitY); ctx.stroke();
+                    ctx.setLineDash([]);
+                } else if (drawMode === 3) {
+                    const deviceX = width * 0.12; 
+                    const realObjX = width * 0.02; 
+                    const realTipY = cy + 45;      
+                    const redHitY = getIntersectionY(objX, cy - 26, lensX, cy - 15, deviceX);
+                    const blueHitY = getIntersectionY(objX, cy - 26, lensX, cy + 15, deviceX);
+
+                    drawObject(ctx, realObjX, cy, Math.abs(cy - realTipY), '倒立真實物', '#38bdf8', false);
+
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(96, 165, 250, 0.15)'; ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(deviceX, cy - 60); ctx.quadraticCurveTo(deviceX + 15, cy, deviceX, cy + 60); ctx.quadraticCurveTo(deviceX - 15, cy, deviceX, cy - 60);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+                    ctx.font = 'bold 14px "Noto Sans TC", sans-serif'; ctx.fillStyle = '#60a5fa'; ctx.textAlign = 'center';
+                    ctx.fillText('凸透鏡', deviceX, cy - 70);
+                    ctx.restore();
+
+                    ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(realObjX, realTipY); ctx.lineTo(deviceX, redHitY); ctx.lineTo(lensX, cy - 15); ctx.stroke();
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.beginPath(); ctx.moveTo(realObjX, realTipY); ctx.lineTo(deviceX, blueHitY); ctx.lineTo(lensX, cy + 15); ctx.stroke();
+
+                } else if (drawMode === 4) {
+                    const deviceX = width * 0.45;  
+                    const realObjX = width * 0.35; 
+                    const realTipY = cy - 12;      
+                    const redHitY = getIntersectionY(objX, cy - 26, lensX, cy - 15, deviceX);
+                    const blueHitY = getIntersectionY(objX, cy - 26, lensX, cy + 15, deviceX);
+
+                    drawObject(ctx, realObjX, cy, Math.abs(cy - realTipY), '真實物', '#38bdf8', true);
+
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(251, 113, 133, 0.15)'; ctx.strokeStyle = '#fb7185'; ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(deviceX, cy - 65); ctx.quadraticCurveTo(deviceX + 15, cy, deviceX, cy + 65); ctx.quadraticCurveTo(deviceX - 15, cy, deviceX, cy - 65);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+                    ctx.font = 'bold 16px "Noto Sans TC", sans-serif'; ctx.fillStyle = '#fb7185'; ctx.textAlign = 'center';
+                    ctx.fillText('凸透鏡', deviceX, cy - 75);
+                    ctx.restore();
+
+                    ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(realObjX, realTipY); ctx.lineTo(deviceX, redHitY); ctx.lineTo(lensX, cy - 15); ctx.stroke();
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.beginPath(); ctx.moveTo(realObjX, realTipY); ctx.lineTo(deviceX, blueHitY); ctx.lineTo(lensX, cy + 15); ctx.stroke();
+
+                    ctx.strokeStyle = '#f87171'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(deviceX, redHitY); ctx.stroke();
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.beginPath(); ctx.moveTo(objX, cy - 26); ctx.lineTo(deviceX, blueHitY); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+        }
+
+        function resizeAndDraw() {
+            // 如果是在四宮格模式，則畫出四個小視窗
+            if (!document.getElementById('gridView').classList.contains('hidden')) {
+                for (let i = 1; i <= 4; i++) {
+                    const c = document.getElementById('canvasGrid' + i);
+                    if (c && c.parentElement) {
+                        c.width = c.parentElement.clientWidth;
+                        c.height = c.parentElement.clientHeight;
+                        drawInteractiveScene(c.getContext('2d'), c.width, c.height, 1.0, i);
+                    }
+                }
+                return; // 不畫原本的視窗
+            }
+
+            const c1 = document.getElementById('canvasNormal');
+            const c2 = document.getElementById('canvasInteractive');
+            if (c1 && c1.parentElement) {
+                c1.width = c1.parentElement.clientWidth;
+                c1.height = c1.parentElement.clientHeight;
+                drawNormalModel(c1.getContext('2d'), c1.width, c1.height, normalRayShown);
+            }
+            if (c2 && c2.parentElement) {
+                c2.width = c2.parentElement.clientWidth;
+                c2.height = c2.parentElement.clientHeight;
+                drawInteractiveScene(c2.getContext('2d'), c2.width, c2.height, transitionProgress);
+            }
+        }
+
+        // 加入動畫渲染迴圈
+        function animateTransition() {
+            const target = activeRayShown ? 1 : 0;
+            const speed = 0.05; // 漸變速度 (每幀改變 5%的透明度，約需 330 毫秒)
+            if (Math.abs(transitionProgress - target) > speed) {
+                transitionProgress += (target > transitionProgress) ? speed : -speed;
+                animationFrameId = requestAnimationFrame(animateTransition);
+            } else {
+                transitionProgress = target;
+            }
+            resizeAndDraw();
+        }
+
+        function toggleActiveRay() {
+            activeRayShown = !activeRayShown;
+            const box = document.getElementById('perceptionBox');
+            const label = document.getElementById('perceptionLabel');
+            
+            if (activeRayShown) {
+                // 真實光路狀態 (淡化、虛線、修改文字)
+                box.className = "absolute top-[4%] left-[4%] w-[48%] h-[92%] rounded-lg pointer-events-none flex p-1 transition-all duration-500 ease-in-out border-2 border-amber-400/40 border-dashed bg-amber-400/5 shadow-none";
+                label.className = "text-[9px] font-bold px-1.5 py-0.5 h-fit rounded transition-all duration-500 bg-amber-200/50 text-slate-700";
+                label.innerText = "真實光路";
+            } else {
+                // 大腦感知狀態 (明亮、實線、復原文字)
+                box.className = "absolute top-[4%] left-[4%] w-[48%] h-[92%] rounded-lg pointer-events-none flex p-1 transition-all duration-500 ease-in-out border-2 border-amber-400 border-solid bg-amber-400/10 shadow-[0_0_8px_rgba(251,191,36,0.4)]";
+                label.className = "text-[9px] font-bold px-1.5 py-0.5 h-fit rounded transition-all duration-500 bg-amber-400 text-slate-900";
+                label.innerText = "大腦感知";
+            }
+            
+            // 解謎機制：只解開「當前點擊」的狀況
+            if (activeRayShown && !revealedModes[currentMode]) {
+                revealedModes[currentMode] = true;
+                document.getElementById('btn' + currentMode).innerText = modeConfigs[currentMode].btnName;
+                document.getElementById('interactiveTitleText').innerText = modeConfigs[currentMode].name;
+                
+                // 檢查是否四種狀況皆已解開，如果是，顯示「四鏡綜合比較」按鈕
+                if (Object.values(revealedModes).every(v => v === true)) {
+                    document.getElementById('btnShowAll').classList.remove('hidden');
+                }
+            }
+
+            // 取代原本的 resizeAndDraw()，呼叫動畫漸變
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animateTransition();
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            activeRayShown = false;
+            transitionProgress = 0; // 重置透明度
+            if (animationFrameId) cancelAnimationFrame(animationFrameId); // 停止進行中的動畫
+            
+            // 切換模式時重置為大腦感知初始狀態
+            const box = document.getElementById('perceptionBox');
+            const label = document.getElementById('perceptionLabel');
+            box.className = "absolute top-[4%] left-[4%] w-[48%] h-[92%] rounded-lg pointer-events-none flex p-1 transition-all duration-500 ease-in-out border-2 border-amber-400 border-solid bg-amber-400/10 shadow-[0_0_8px_rgba(251,191,36,0.4)]";
+            label.className = "text-[9px] font-bold px-1.5 py-0.5 h-fit rounded transition-all duration-500 bg-amber-400 text-slate-900";
+            label.innerText = "大腦感知";
+
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.getElementById('btn' + i);
+                if (i === mode) {
+                    btn.className = 'px-2 py-0.5 rounded font-medium bg-amber-500 text-white transition';
+                } else {
+                    btn.className = 'px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+                }
+            }
+
+            const config = modeConfigs[mode];
+            // 根據該模式是否已解鎖，決定標題顯示名稱還是「人眼看到的」
+            document.getElementById('interactiveTitleText').innerText = revealedModes[mode] ? config.name : '人眼看到的';
+            resizeAndDraw();
+        }
+
+        // 新增：切換四宮格與雙視窗模式
+        function toggleGridView() {
+            const dual = document.getElementById('dualView');
+            const grid = document.getElementById('gridView');
+            const btnSpan = document.getElementById('btnShowAll').querySelector('span');
+
+            if (grid.classList.contains('hidden')) {
+                dual.classList.add('hidden');
+                grid.classList.remove('hidden');
+                btnSpan.innerText = '返回單一模式';
+            } else {
+                grid.classList.add('hidden');
+                dual.classList.remove('hidden');
+                btnSpan.innerText = '四鏡綜合比較';
+            }
+            resizeAndDraw();
+        }
+
+        window.addEventListener('resize', resizeAndDraw);
+        window.onload = resizeAndDraw;
+    </script>
+</body>
+</html>
