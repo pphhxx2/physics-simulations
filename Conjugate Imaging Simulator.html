@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>共軛成像教學動畫</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            background-color: white;
+            cursor: grab;
+        }
+        canvas:active { cursor: grabbing; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 sm:p-8 relative">
+
+    <div class="w-full max-w-6xl bg-white rounded-2xl shadow-xl p-6 space-y-6">
+        <!-- 標題與彈出視窗觸發點 -->
+        <h1 class="text-3xl font-extrabold text-center text-gray-800 tracking-tight">
+            薄透鏡<span id="conjugateLink" class="text-blue-600 cursor-pointer hover:underline hover:text-blue-700 transition" title="點擊查看原理圖">共軛</span>成像實驗
+        </h1>
+
+        <!-- 頂部數據列 (彈性排版、強制不換行，解決排版跳動) -->
+        <div class="flex flex-wrap justify-around items-center gap-4 bg-gray-100 p-4 rounded-xl w-full">
+            <!-- 焦距 f -->
+            <div id="focalContainer" class="whitespace-nowrap text-lg md:text-xl font-bold text-gray-700 flex items-center cursor-pointer hover:bg-gray-200 p-2 rounded transition" title="點擊顯示/隱藏數值">
+                透鏡焦距 (f): <span id="focalVal" class="text-blue-600 text-xl md:text-2xl ml-2 font-mono w-16 text-center">?</span>
+            </div>
+            <!-- 物屏距離 L -->
+            <div class="whitespace-nowrap text-lg md:text-xl font-bold text-gray-700 flex items-center h-full">
+                物屏距離 (L): <span id="screenVal" class="text-blue-600 text-xl md:text-2xl mx-2 font-mono w-24 text-center">100.00</span>
+                <button id="toggleLBtn" class="bg-white border border-green-500 text-green-600 hover:bg-green-50 font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-sm ml-2 h-8 flex items-center">顯示 L 線</button>
+            </div>
+            <!-- 透鏡位置 x -->
+            <div id="lensXContainer" class="whitespace-nowrap text-lg md:text-xl font-bold text-gray-700 flex items-center cursor-pointer hover:bg-gray-200 p-2 rounded transition" title="點擊顯示/隱藏數值">
+                透鏡位置 (x): <span id="lensXVal" class="text-blue-600 text-xl md:text-2xl ml-2 font-mono w-16 text-center">?</span>
+            </div>
+        </div>
+
+        <!-- 畫布區塊 -->
+        <div id="canvas-container" class="relative w-full aspect-[21/9]">
+            <canvas id="opticsCanvas" width="1400" height="600"></canvas>
+            <button id="markBtn" class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition duration-300 border border-transparent">
+                標記透鏡位置
+            </button>
+        </div>
+
+        <!-- 下方操作區三欄並排 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- 第一欄：文字大小與顯示設定 -->
+            <div class="flex flex-col justify-center items-center gap-4 bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <div class="flex items-center gap-3">
+                    <span class="font-bold text-gray-700">文字大小:</span>
+                    <button id="btnTextDec" class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-bold w-8 h-8 rounded-lg shadow-sm flex items-center justify-center text-lg transition-colors">-</button>
+                    <span id="textSizeDisplay" class="font-bold w-8 text-center text-gray-800">1.0</span>
+                    <button id="btnTextInc" class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-bold w-8 h-8 rounded-lg shadow-sm flex items-center justify-center text-lg transition-colors">+</button>
+                </div>
+                <div class="flex gap-2">
+                    <button id="toggleMarkersBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition duration-300 text-sm border border-transparent h-10">
+                        顯示共軛點定位
+                    </button>
+                    <button id="toggleGridBtn" class="bg-white border border-purple-500 text-purple-600 hover:bg-purple-50 font-bold py-2 px-4 rounded-full shadow-md transition duration-300 text-sm h-10 box-border">
+                        顯示座標格線
+                    </button>
+                </div>
+            </div>
+
+            <!-- 第二欄：標記距離 d -->
+            <div class="flex flex-col items-center justify-center bg-gray-50 rounded-xl p-4 border border-gray-100 h-full">
+                <div class="text-lg font-bold text-gray-700 mb-2">透鏡移動距離測量 (d)</div>
+                <!-- 加上固定高度與置中，防止字體變大時 UI 跳動 -->
+                <div id="markList" class="flex items-center justify-center h-10 w-full text-gray-500 text-center font-mono text-base transition-all">
+                    尚未標記
+                </div>
+            </div>
+
+            <!-- 第三欄：計算數據 -->
+            <div class="flex flex-col justify-center bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <div class="grid grid-cols-3 gap-2 text-center w-full h-full">
+                    <!-- 物距 p -->
+                    <div class="flex flex-col items-center h-full">
+                        <div class="text-sm text-gray-500 mb-1">物距 p</div>
+                        <div id="pDataContainer" class="cursor-pointer hover:bg-blue-100 p-1 rounded transition w-full flex-grow flex items-center justify-center" title="點擊顯示數值">
+                            <div class="font-bold text-2xl mb-2 text-blue-600" id="out-p">?</div>
+                        </div>
+                        <button id="togglePBtn" class="bg-white border border-blue-500 text-blue-600 hover:bg-blue-50 font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-xs mt-auto w-full h-8 flex justify-center items-center">顯示 p 線</button>
+                    </div>
+                    <!-- 像距 q -->
+                    <div class="flex flex-col items-center h-full">
+                        <div class="text-sm text-gray-500 mb-1">像距 q</div>
+                        <div id="qDataContainer" class="cursor-pointer hover:bg-orange-100 p-1 rounded transition w-full flex-grow flex items-center justify-center" title="點擊顯示數值">
+                            <div class="font-bold text-2xl mb-2 text-orange-600" id="out-q">?</div>
+                        </div>
+                        <button id="toggleQBtn" class="bg-white border border-orange-500 text-orange-600 hover:bg-orange-50 font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-xs mt-auto w-full h-8 flex justify-center items-center">顯示 q 線</button>
+                    </div>
+                    <!-- 放大率 m -->
+                    <div class="flex flex-col items-center justify-start h-full">
+                        <div class="text-sm text-gray-500 mb-1">放大率 m</div>
+                        <div id="mDataContainer" class="cursor-pointer hover:bg-purple-100 p-1 rounded transition w-full flex-grow flex items-center justify-center" title="點擊顯示數值">
+                            <div class="font-bold text-2xl text-purple-600 pb-8" id="out-m">?</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖片彈出視窗 -->
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 overflow-hidden relative border border-gray-200">
+            <div class="flex justify-between items-center p-4 border-b bg-gray-50">
+                <h3 class="text-xl font-bold text-gray-800 tracking-wide">共軛</h3>
+                <button id="closeModalBtn" class="text-gray-400 hover:text-red-500 text-3xl font-bold leading-none focus:outline-none transition-colors">&times;</button>
+            </div>
+            <!-- 使用 Google Drive 縮圖 API -->
+            <div class="p-6 flex justify-center bg-gray-200">
+                <img src="https://drive.google.com/thumbnail?id=1A08RXQxKe3u_l-4q-T-jEgRppHe_9Myz&sz=w1200" 
+                     alt="共軛成像原理" 
+                     class="max-h-[70vh] object-contain rounded-lg shadow-md bg-white"
+                     onerror="this.src='https://placehold.co/800x400/f8d7da/721c24?text=Google+Drive+無法直接顯示此圖片\\n請考慮使用+Imgur+等圖床';">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('opticsCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI 元素
+        const focalVal = document.getElementById('focalVal');
+        const screenVal = document.getElementById('screenVal');
+        const lensXVal = document.getElementById('lensXVal');
+        
+        const outP = document.getElementById('out-p');
+        const outQ = document.getElementById('out-q');
+        const outM = document.getElementById('out-m');
+        const markList = document.getElementById('markList');
+
+        const toggleLBtn = document.getElementById('toggleLBtn');
+        const togglePBtn = document.getElementById('togglePBtn');
+        const toggleQBtn = document.getElementById('toggleQBtn');
+        const toggleGridBtn = document.getElementById('toggleGridBtn');
+        const toggleMarkersBtn = document.getElementById('toggleMarkersBtn');
+        const markBtn = document.getElementById('markBtn');
+
+        // 系統內部參數
+        const scale = 10;
+        let originX = 20.0;     
+        let f = 24.0;           
+        let L = 100.0;          
+        let screenX = originX + L; 
+        let p = 40.0;           
+        let lensX = originX + p;
+
+        // 狀態變數
+        let isDraggingLens = false;
+        let isDraggingScreen = false;
+        let isDraggingObj = false;
+        let isDraggingFocal = false;
+        
+        let showConjugateMarkers = false;
+        let showDistL = false; 
+        let showDistP = false; 
+        let showDistQ = false; 
+        let showGridAndRuler = false; 
+        
+        // 遮蓋狀態變數 (預設隱藏: false)
+        let isFocalRevealed = false; 
+        let isLensXRevealed = false; 
+        let isPRevealed = false;     
+        let isQRevealed = false;     
+        let isMRevealed = false;     
+        
+        let userMarkers = []; 
+        let textScale = 1.0;
+
+        function updateUI() {
+            // 頂部數據更新
+            focalVal.innerText = isFocalRevealed ? f.toFixed(2) : "?";
+            screenVal.innerText = L.toFixed(2);
+            lensXVal.innerText = isLensXRevealed ? lensX.toFixed(2) : "?";
+            
+            // 計算數據
+            outP.innerText = isPRevealed ? p.toFixed(2) : "?";
+            let q = lensX === (originX + f) ? Infinity : (p * f) / (p - f);
+            let m = -q / p;
+            
+            if (q === Infinity || q < 0) {
+                outQ.innerText = isQRevealed ? '虛像' : '?';
+                outM.innerText = isMRevealed ? '-' : '?';
+            } else {
+                outQ.innerText = isQRevealed ? q.toFixed(2) : '?';
+                outM.innerText = isMRevealed ? m.toFixed(2) : '?';
+            }
+
+            // 標記列表 - 保留 flex 與 h-10 避免跳動
+            if (userMarkers.length === 0) {
+                markList.innerHTML = '尚未標記';
+                markList.className = "flex items-center justify-center h-10 w-full text-gray-500 text-center font-mono text-base transition-all";
+            } else if (userMarkers.length === 1) {
+                let d = Math.abs(lensX - userMarkers[0]);
+                markList.innerHTML = `<div class="text-blue-600 font-bold text-2xl">目前位移 d = ${d.toFixed(2)}</div>`;
+                markList.className = "flex items-center justify-center h-10 w-full text-center font-mono transition-all";
+            } else if (userMarkers.length >= 2) {
+                let d = Math.abs(userMarkers[1] - userMarkers[0]);
+                markList.innerHTML = `<div class="text-green-600 font-bold text-2xl">固定距離 d = ${d.toFixed(2)}</div>`;
+                markList.className = "flex items-center justify-center h-10 w-full text-center font-mono transition-all";
+            }
+        }
+
+        // --- 繪圖函數群 ---
+        function drawGrid() {
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 1400; i += 10) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 600); ctx.stroke();
+            }
+            for (let i = 0; i <= 600; i += 10) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(1400, i); ctx.stroke();
+            }
+        }
+
+        function drawRuler() {
+            ctx.strokeStyle = '#9ca3af';
+            ctx.fillStyle = '#6b7280';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.font = `bold ${32 * textScale}px Inter`;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, 500);
+            ctx.lineTo(1400, 500);
+            ctx.stroke();
+
+            for (let i = 0; i <= 140; i++) {
+                let x = i * scale;
+                ctx.beginPath();
+                if (i % 10 === 0) {
+                    ctx.moveTo(x, 500); ctx.lineTo(x, 520);
+                    ctx.fillText(i.toString(), x, 530);
+                } else if (i % 5 === 0) {
+                    ctx.moveTo(x, 500); ctx.lineTo(x, 510);
+                } else {
+                    ctx.moveTo(x, 500); ctx.lineTo(x, 505);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function drawDimensionLine(x1, x2, y, text, color) {
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            
+            ctx.beginPath();
+            ctx.moveTo(x1, y);
+            ctx.lineTo(x2, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            const arrowSize = 8;
+            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1 + arrowSize, y - arrowSize/2); ctx.lineTo(x1 + arrowSize, y + arrowSize/2); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x2, y); ctx.lineTo(x2 - arrowSize, y - arrowSize/2); ctx.lineTo(x2 - arrowSize, y + arrowSize/2); ctx.fill();
+
+            ctx.font = `bold ${36 * textScale}px Inter`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle'; // 這裡會改變基準線
+            
+            const textWidth = ctx.measureText(text).width + 24;
+            ctx.fillStyle = '#f3f4f6';
+            ctx.fillRect((x1 + x2)/2 - textWidth/2, y - 24 * textScale, textWidth, 48 * textScale);
+            
+            ctx.fillStyle = color;
+            ctx.fillText(text, (x1 + x2) / 2, y);
+            
+            // 繪製完成後，立刻復原基準線，防止干擾畫布內其他文字（解決跳動 Bug）
+            ctx.textBaseline = 'alphabetic'; 
+        }
+
+        function drawMeasurementD() {
+            if (userMarkers.length === 1) {
+                let mx = userMarkers[0] * scale;
+                let lx = lensX * scale;
+                drawDimensionLine(mx, lx, 420, `d = ${Math.abs(lensX - userMarkers[0]).toFixed(2)}`, '#3b82f6');
+            } else if (userMarkers.length >= 2) {
+                let m1 = userMarkers[0] * scale;
+                let m2 = userMarkers[1] * scale;
+                drawDimensionLine(m1, m2, 420, `d = ${Math.abs(userMarkers[1] - userMarkers[0]).toFixed(2)}`, '#10b981');
+            }
+        }
+
+        function drawPoint(x, label) {
+            let px = x * scale;
+            ctx.fillStyle = '#4b5563';
+            ctx.beginPath();
+            ctx.arc(px, 300, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.font = `bold ${28 * textScale}px Inter`;
+            ctx.textAlign = 'center';
+            ctx.fillText(label, px, 250);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let q = (p === f) ? 999999 : (p * f) / (p - f);
+            let imgX = originX + p + q;
+            let m = -q / p;
+            let isFocused = Math.abs(imgX - screenX) < 1 && q > 0;
+
+            if (showGridAndRuler) {
+                drawGrid();
+                drawRuler();
+            }
+            
+            // 強制重置文字基準線
+            ctx.textBaseline = 'alphabetic';
+
+            // 光軸
+            ctx.strokeStyle = '#9ca3af';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([10, 5]);
+            ctx.beginPath(); ctx.moveTo(0, 300); ctx.lineTo(1400, 300); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 標記與測量線 d
+            userMarkers.forEach(markX => {
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([8, 6]);
+                ctx.beginPath();
+                ctx.moveTo(markX * scale, 150);
+                ctx.lineTo(markX * scale, 450);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+            drawMeasurementD();
+
+            // 焦點
+            drawPoint(lensX - f, 'F1');
+            drawPoint(lensX + f, 'F2');
+            drawPoint(lensX - 2*f, '2F1');
+            drawPoint(lensX + 2*f, '2F2');
+
+            // 共軛點提示
+            if (showConjugateMarkers && L >= 4 * f) {
+                let D = L;
+                let d_val = Math.sqrt(D * D - 4 * D * f);
+                let p1 = (D + d_val) / 2;
+                let p2 = (D - d_val) / 2;
+                let mark1X = originX + p1;
+                let mark2X = originX + p2;
+
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                ctx.beginPath(); ctx.arc(mark1X * scale, 300, 12, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(mark2X * scale, 300, 12, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // 物體
+            let objHeight = 100;
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(originX * scale, 300);
+            ctx.lineTo(originX * scale, 300 - objHeight);
+            ctx.stroke();
+            // 箭頭
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(originX * scale, 300 - objHeight - 12);
+            ctx.lineTo(originX * scale - 12, 300 - objHeight + 6);
+            ctx.lineTo(originX * scale + 12, 300 - objHeight + 6);
+            ctx.fill();
+            ctx.font = `bold ${36 * textScale}px Inter`;
+            ctx.fillText('物體', originX * scale, 340);
+            
+            if(isDraggingObj) { ctx.fillStyle = 'rgba(239, 68, 68, 0.1)'; ctx.fillRect(originX * scale - 25, 200, 50, 120); }
+
+            // 透鏡
+            ctx.strokeStyle = '#3b82f6';
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(lensX * scale, 300, 15, 120, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#2563eb';
+            ctx.font = `bold ${36 * textScale}px Inter`;
+            ctx.fillText('透鏡', lensX * scale, 140);
+            
+            if(isDraggingLens) { ctx.fillStyle = 'rgba(59, 130, 246, 0.1)'; ctx.fillRect(lensX * scale - 25, 180, 50, 240); }
+
+            // 屏幕
+            ctx.strokeStyle = isFocused ? '#10b981' : '#6b7280';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(screenX * scale, 100);
+            ctx.lineTo(screenX * scale, 500);
+            ctx.stroke();
+            ctx.fillStyle = isFocused ? '#059669' : '#4b5563';
+            ctx.font = `bold ${36 * textScale}px Inter`;
+            ctx.fillText('屏幕', screenX * scale, 540);
+            
+            if(isDraggingScreen) { ctx.fillStyle = 'rgba(16, 185, 129, 0.1)'; ctx.fillRect(screenX * scale - 20, 100, 40, 400); }
+
+            // 光線
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let drawExtX = 150; 
+            
+            // 1. 平行光 -> 過 F2
+            ctx.moveTo(originX * scale, 300 - objHeight);
+            ctx.lineTo(lensX * scale, 300 - objHeight);
+            let ray1EndY = 300 - objHeight + (objHeight / f) * (drawExtX - lensX);
+            ctx.lineTo(drawExtX * scale, ray1EndY);
+            
+            // 2. 過鏡心
+            ctx.moveTo(originX * scale, 300 - objHeight);
+            let ray2EndY = 300 - objHeight + (objHeight / p) * (drawExtX - originX);
+            ctx.lineTo(drawExtX * scale, ray2EndY);
+            ctx.stroke();
+
+            // 成像 (永遠固定為橘色，箭頭正確朝下)
+            if (q > 0 && q !== 999999 && q !== Infinity) {
+                let realImgX = originX + p + q;
+                let realImgHeight = objHeight * m; // 負值
+                let tipY = 300 - realImgHeight;    // 交會點 Y 座標
+
+                ctx.strokeStyle = '#f59e0b'; // 固定橘色
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(realImgX * scale, 300);
+                ctx.lineTo(realImgX * scale, tipY);
+                ctx.stroke();
+                
+                // 箭頭方向正確向下修正
+                ctx.fillStyle = '#f59e0b'; // 固定橘色
+                ctx.beginPath();
+                ctx.moveTo(realImgX * scale, tipY);
+                if (realImgHeight < 0) {
+                    ctx.lineTo(realImgX * scale - 12, tipY - 18);
+                    ctx.lineTo(realImgX * scale + 12, tipY - 18);
+                } else {
+                    ctx.lineTo(realImgX * scale - 12, tipY + 18);
+                    ctx.lineTo(realImgX * scale + 12, tipY + 18);
+                }
+                ctx.fill();
+
+                ctx.font = `bold ${36 * textScale}px Inter`;
+                let textY = realImgHeight < 0 ? tipY + 40 : tipY - 20;
+                ctx.fillText('實像', realImgX * scale, textY);
+            }
+
+            // 垂直參考線
+            ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.moveTo(originX * scale, 350); ctx.lineTo(originX * scale, 60); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(lensX * scale, 350); ctx.lineTo(lensX * scale, 60); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(screenX * scale, 350); ctx.lineTo(screenX * scale, 60); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 距離標示
+            if (showDistL) drawDimensionLine(originX * scale, screenX * scale, 40, `L = ${L.toFixed(2)}`, '#10b981');
+            if (showDistP) drawDimensionLine(originX * scale, lensX * scale, 80, `p = ${p.toFixed(2)}`, '#3b82f6');
+            if (showDistQ && q > 0) drawDimensionLine(lensX * scale, imgX * scale, 120, `q = ${q.toFixed(2)}`, '#f59e0b');
+        }
+
+        // --- 事件監聽 ---
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return ((evt.clientX - rect.left) / rect.width) * 140;
+        }
+
+        function snapToInterval(value, interval = 0.1) {
+            return Math.round(value / interval) * interval;
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const mx = getMousePos(e);
+            const hitZone = 3; 
+            if (Math.abs(mx - lensX) < hitZone) isDraggingLens = true;
+            else if (Math.abs(mx - screenX) < hitZone) isDraggingScreen = true;
+            else if (Math.abs(mx - originX) < hitZone) isDraggingObj = true;
+            else if (Math.abs(mx - (lensX - f)) < hitZone || Math.abs(mx - (lensX + f)) < hitZone) isDraggingFocal = true;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDraggingLens && !isDraggingScreen && !isDraggingObj && !isDraggingFocal) return;
+            
+            let mx = snapToInterval(getMousePos(e), 0.1); 
+            mx = Math.max(0, Math.min(140, mx)); 
+
+            if (isDraggingLens) {
+                if (L >= 4 * f) {
+                    let D = L;
+                    let d_val = Math.sqrt(D * D - 4 * D * f);
+                    let p1 = (D + d_val) / 2;
+                    let p2 = (D - d_val) / 2;
+                    if (Math.abs(mx - (originX + p1)) <= 0.5) mx = originX + p1;
+                    else if (Math.abs(mx - (originX + p2)) <= 0.5) mx = originX + p2;
+                }
+                lensX = Math.max(originX + 1, Math.min(screenX - 1, mx));
+                p = snapToInterval(lensX - originX, 0.1);
+            } 
+            else if (isDraggingScreen) {
+                screenX = Math.max(lensX + 1, mx);
+                L = snapToInterval(screenX - originX, 0.1);
+            }
+            else if (isDraggingObj) {
+                originX = Math.min(lensX - 1, mx);
+                p = snapToInterval(lensX - originX, 0.1);
+                L = snapToInterval(screenX - originX, 0.1);
+            }
+            else if (isDraggingFocal) {
+                let newF = snapToInterval(Math.abs(lensX - mx), 0.1);
+                f = Math.max(5, Math.min(50, newF));
+            }
+            updateUI();
+            draw();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDraggingLens = isDraggingScreen = isDraggingObj = isDraggingFocal = false;
+            updateUI(); draw();
+        });
+
+        markBtn.addEventListener('click', () => {
+            if (userMarkers.length >= 2) userMarkers = []; 
+            userMarkers.push(lensX);
+            updateUI(); draw();
+        });
+
+        toggleMarkersBtn.addEventListener('click', () => {
+            showConjugateMarkers = !showConjugateMarkers;
+            toggleMarkersBtn.innerText = showConjugateMarkers ? '隱藏共軛點定位' : '顯示共軛點定位';
+            toggleMarkersBtn.className = showConjugateMarkers 
+                ? 'bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition duration-300 text-sm border border-transparent h-10'
+                : 'bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition duration-300 text-sm border border-transparent h-10';
+            draw();
+        });
+
+        toggleGridBtn.addEventListener('click', () => {
+            showGridAndRuler = !showGridAndRuler;
+            toggleGridBtn.innerText = showGridAndRuler ? '隱藏座標格線' : '顯示座標格線';
+            toggleGridBtn.className = showGridAndRuler
+                ? 'bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition duration-300 text-sm border border-transparent h-10 box-border'
+                : 'bg-white border border-purple-500 text-purple-600 hover:bg-purple-50 font-bold py-2 px-4 rounded-full shadow-md transition duration-300 text-sm h-10 box-border';
+            draw();
+        });
+
+        // 獨立按鈕邏輯避免樣式衝突，增加 h-8, flex 保持不跳動
+        toggleLBtn.addEventListener('click', () => {
+            showDistL = !showDistL;
+            toggleLBtn.innerText = showDistL ? '隱藏 L 線' : '顯示 L 線';
+            toggleLBtn.className = showDistL
+                ? 'bg-white border border-green-500 text-green-600 hover:bg-green-50 font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-sm ml-2 h-8 flex items-center'
+                : 'bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-sm border border-transparent ml-2 h-8 flex items-center';
+            draw();
+        });
+
+        togglePBtn.addEventListener('click', () => {
+            showDistP = !showDistP;
+            togglePBtn.innerText = showDistP ? '隱藏 p 線' : '顯示 p 線';
+            togglePBtn.className = showDistP
+                ? 'bg-white border border-blue-500 text-blue-600 hover:bg-blue-50 font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-xs mt-auto w-full h-8 flex justify-center items-center'
+                : 'bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-xs mt-auto w-full border border-transparent h-8 flex justify-center items-center';
+            draw();
+        });
+
+        toggleQBtn.addEventListener('click', () => {
+            showDistQ = !showDistQ;
+            toggleQBtn.innerText = showDistQ ? '隱藏 q 線' : '顯示 q 線';
+            toggleQBtn.className = showDistQ
+                ? 'bg-white border border-orange-500 text-orange-600 hover:bg-orange-50 font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-xs mt-auto w-full h-8 flex justify-center items-center'
+                : 'bg-orange-500 hover:bg-orange-600 text-white font-bold py-1 px-3 rounded shadow-sm transition duration-300 text-xs mt-auto w-full border border-transparent h-8 flex justify-center items-center';
+            draw();
+        });
+
+        // 問號點擊切換事件
+        document.getElementById('focalContainer').addEventListener('click', () => { isFocalRevealed = !isFocalRevealed; updateUI(); });
+        document.getElementById('lensXContainer').addEventListener('click', () => { isLensXRevealed = !isLensXRevealed; updateUI(); });
+        document.getElementById('pDataContainer').addEventListener('click', () => { isPRevealed = !isPRevealed; updateUI(); });
+        document.getElementById('qDataContainer').addEventListener('click', () => { isQRevealed = !isQRevealed; updateUI(); });
+        document.getElementById('mDataContainer').addEventListener('click', () => { isMRevealed = !isMRevealed; updateUI(); });
+
+        document.getElementById('btnTextInc').addEventListener('click', () => {
+            textScale = Math.min(2.0, textScale + 0.2);
+            document.getElementById('textSizeDisplay').innerText = textScale.toFixed(1);
+            draw();
+        });
+        document.getElementById('btnTextDec').addEventListener('click', () => {
+            textScale = Math.max(0.6, textScale - 0.2);
+            document.getElementById('textSizeDisplay').innerText = textScale.toFixed(1);
+            draw();
+        });
+
+        // 圖片彈出視窗控制邏輯
+        const modal = document.getElementById('imageModal');
+        document.getElementById('conjugateLink').addEventListener('click', () => { modal.classList.remove('hidden'); });
+        document.getElementById('closeModalBtn').addEventListener('click', () => { modal.classList.add('hidden'); });
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
+
+        updateUI();
+        draw();
+    </script>
+</body>
+</html>
