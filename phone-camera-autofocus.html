@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手機相機自動對焦｜透鏡成像（109 指考）</title>
+<style>
+:root{--bg:#0f1724;--panel:#17233a;--panel2:#1d2c47;--line:#2c3f63;--text:#eef3fb;--muted:#a9b8d3;--accent:#4fc3f7;--ok:#3ddc84;--warn:#ffca28;--bad:#ff6b6b}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC","Heiti TC",system-ui,sans-serif;font-size:19px;line-height:1.45}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 18px;background:#0b1220;border-bottom:1px solid var(--line)}
+header h1{font-size:1.45rem;margin:0;font-weight:700;letter-spacing:.03em}
+header h1 small{font-size:.8rem;color:var(--muted);font-weight:400;margin-left:8px}
+.spacer{flex:1}
+button{font:inherit;color:var(--text);background:var(--panel2);border:2px solid var(--line);border-radius:12px;padding:8px 16px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--accent)}
+button:active{transform:scale(.97)}
+button.primary{background:#0d6efd;border-color:#3d8bfd;font-weight:700;font-size:1.1rem}
+button.primary.pulse{animation:pulse 1.2s ease-in-out 3}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(79,195,247,0)}50%{box-shadow:0 0 0 12px rgba(79,195,247,.45)}}
+button.preset{font-weight:600}
+button.preset.active{border-color:var(--warn);color:var(--warn)}
+main{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 14px}
+.card h2{font-size:1.1rem;margin:0 0 6px;color:var(--accent)}
+#diagramWrap{position:relative;height:56vh;min-height:360px;padding:0;overflow:hidden}
+#diagram{width:100%;height:100%;display:block;touch-action:none}
+#hint{position:absolute;left:14px;bottom:8px;font-size:.8rem;color:var(--muted);pointer-events:none}
+#banner{position:absolute;left:50%;top:10px;transform:translateX(-50%);padding:6px 18px;border-radius:999px;font-weight:700;font-size:1.1rem;background:rgba(0,0,0,.6);border:2px solid var(--line);white-space:nowrap}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1.05fr);gap:12px}
+#sensorBox{display:flex;flex-direction:column}
+#sensorView{height:24vh;min-height:180px;width:auto;aspect-ratio:4/3;max-width:100%;align-self:center;border-radius:10px;background:#000;display:block;border:3px solid #333}
+.sensorTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.toggle{display:flex;gap:6px}
+.toggle button{padding:3px 10px;font-size:.82rem;border-radius:8px}
+.toggle button.on{border-color:var(--accent);color:var(--accent)}
+#clarity{display:flex;align-items:center;gap:12px;margin-top:8px}
+#clarityTag{font-size:1.4rem;font-weight:800;padding:2px 14px;border-radius:10px;min-width:110px;text-align:center}
+#clarityBar{flex:1;height:16px;background:#0b1220;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+#clarityFill{height:100%;width:50%;background:var(--ok);transition:width .1s}
+.readout{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:1.12rem;align-items:baseline}
+.readout .k{color:var(--muted)}
+.readout .v{font-weight:700;font-variant-numeric:tabular-nums}
+#nature{margin-top:8px;font-size:1.3rem;font-weight:800;text-align:center;padding:4px;border-radius:10px;background:#0b1220}
+#msg{margin-top:6px;font-size:.95rem;color:var(--warn);min-height:1.4em}
+.ctrl{margin-bottom:10px}
+.ctrl label{display:flex;justify-content:space-between;font-weight:600}
+.ctrl label span.val{color:var(--warn);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;height:34px;accent-color:var(--accent);cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:.85rem;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:22px;height:4px;border-radius:2px;vertical-align:middle;margin-right:5px}
+kbd{background:#0b1220;border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:.8em}
+@media (max-width:1200px){.row{grid-template-columns:1fr 1fr}#sensorBox{grid-column:1/-1}}
+@media (max-width:760px){.row{grid-template-columns:1fr} html,body{font-size:16px}}
+.fwrap{position:relative;display:inline-block;min-width:3.4em;text-align:center}
+.fwrap.short{min-width:2.6em;margin-left:4px}
+.fwrap.short .fmask{inset:-4px -2px}
+.fmask{position:absolute;inset:-4px -8px;display:flex;align-items:center;justify-content:center;background:#24395e;border:2px solid #4fc3f7;border-radius:9px;color:#fff;font-weight:900;letter-spacing:.12em;cursor:pointer;opacity:1;transition:opacity .5s ease;z-index:2;user-select:none}
+.fmask:hover{background:#2d4874}
+body.f-shown .fmask{opacity:0;pointer-events:none}
+body.f-shown .fval{cursor:pointer}
+/* 版面整理：放大即時數值與控制區以填滿卡片 */
+.row>.card{display:flex;flex-direction:column}
+.readout{font-size:1.5rem;gap:10px 18px;flex:1;align-content:center}
+#msg{font-size:1.05rem}
+.ctrl{margin:16px 0 20px}
+.ctrl label{font-size:1.2rem}
+.ctrl:last-child{margin-bottom:0}
+</style></head>
+<body>
+<header>
+  <h1>手機相機的自動對焦</h1>
+  <div class="spacer"></div>
+  <button class="preset" data-preset="inf">① 無窮遠</button>
+  <button class="preset" data-preset="p4m">② 物距 4.0 m</button>
+  <button class="preset" data-preset="p36">③ 物距 36 mm（最近對焦）</button>
+  <button class="preset" data-preset="p30">④ 物距 30 mm</button>
+  <button id="afBtn" class="primary">🎯 自動對焦</button>
+</header>
+<main>
+  <div class="card" id="diagramWrap">
+    <canvas id="diagram"></canvas>
+    <div id="banner">—</div>
+  </div>
+  <div class="row">
+    <div class="card" id="sensorBox">
+      <div class="sensorTop">
+        <h2 style="margin:0">感光元件上的影像</h2>
+        <div class="toggle">
+          <button id="viewRaw" class="on">實際（倒立）</button>
+          <button id="viewScreen">手機螢幕（轉正）</button>
+        </div>
+      </div>
+      <canvas id="sensorView" width="640" height="480"></canvas>
+      <div id="clarity"><div id="clarityTag">清晰</div><div id="clarityBar"><div id="clarityFill"></div></div></div>
+    </div>
+    <div class="card">
+      <h2>即時數值</h2>
+      <div class="readout">
+        <span class="k">物距 p</span><span class="v" id="oP">—</span>
+        <span class="k">焦距 f</span><span class="v" id="oF"><span class="fwrap"><span class="fval">4.0 mm（固定）</span><span class="fmask" title="點擊顯示焦距">???</span></span></span>
+        <span class="k">像距 q</span><span class="v" id="oQ">—</span>
+        <span class="k">透鏡位置 d</span><span class="v" id="oD">—</span>
+      </div>
+      <div id="msg"></div>
+    </div>
+    <div class="card">
+      <h2>操作控制</h2>
+      <div class="ctrl">
+        <label>物距 p<span class="val" id="lP"></span></label>
+        <input type="range" id="sP" min="0" max="1000" step="1">
+      </div>
+      <div class="ctrl">
+        <label>焦距 f<span class="val"><span class="fwrap"><span class="fval">4.0 mm（固定）</span><span class="fmask" title="點擊顯示焦距">???</span></span></span></label>
+      </div>
+      <div class="ctrl">
+        <label>透鏡位置 d（4.0～4.5 mm）<span class="val" id="lD"></span></label>
+        <input type="range" id="sD" min="4" max="4.5" step="0.001">
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+"use strict";
+// ===== 題目數據（單位：mm）=====
+const F = 4.0;                 // 焦距固定
+const D_MIN = 4.0, D_MAX = 4.5;// 自動對焦機構的移動範圍
+const P_INF = 1e12;            // 代表 ∞
+const P_MIN = 10, P_MAX = 1e5; // 滑桿 10 mm ～ 100 m
+const H_OBJ = 1.3;             // 物體（箭頭）高度（示意）
+const A = 1.0;                 // 透鏡有效半徑（約 f/2）
+const LENS_DRAW = 1.1;
+const SENSOR_HALF = 1.3, SENSOR_H = 2*SENSOR_HALF;
+const COC = 0.002;             // 可接受模糊圈 2 μm（約一個像素）
+const HALF_Y = 2.25;
+const MOD_FRONT = 5.25;        // 相機模組前緣（保護玻璃）到感光元件
+const PHONE_BACK = 3.1;        // 手機背殼外表面到感光元件
+const C1="#ff8a65", C2="#81d4fa", C3="#ce93d8";
+
+// p 直接以「物體到透鏡」定義（透鏡移動時 p 不變）
+const S = {p:40, d:4.25, viewRaw:true, anim:null};
+
+const $ = id=>document.getElementById(id);
+const cv=$("diagram"), ctx=cv.getContext("2d");
+const sv=$("sensorView"), sctx=sv.getContext("2d");
+const sP=$("sP"), sD=$("sD");
+const isInf = p => p >= 1e9;
+const pToSlider = p => isInf(p) ? 1000 : Math.round(985*Math.log(p/P_MIN)/Math.log(P_MAX/P_MIN));
+const sliderToP = v => v>=993 ? P_INF : P_MIN*Math.pow(P_MAX/P_MIN, Math.min(v,985)/985);
+
+function optics(){
+  const p=S.p, f=F, d=S.d;
+  const inv = (isInf(p)?0:1/p) - 1/f;
+  const q = -1/inv;                    // 1/q = 1/f − 1/p
+  const M = isInf(p) ? 0 : -q/p;
+  const b = 2*A*Math.abs(1 + d*inv);   // = 2A|q−d|/q
+  const real = q > 0;
+  return {p,f,d,q,M,b,real};
+}
+function outSlope(y0,p){ return (isInf(p)?0:(y0-H_OBJ)/p) - y0/F; }
+const pFocus = d => (Math.abs(d-F)<1e-9) ? Infinity : 1/(1/F - 1/d);
+
+// ===== 示意圖座標（長度未按比例）=====
+// 像方：實際距離 q（mm）→ 示意距離 g(q)（以「示意焦距」為單位），單調連續，放大 F′～4.5 mm 區段。
+// 物方位置由示意透鏡公式 1/pd + 1/gd = 1 反推，因此所有光線仍是真正的直線、③ 仍平行主軸、像點一致。
+const GK=[[4,1.0],[4.5,1.6],[4.62,1.75],[8,2.0]];
+function g(q){ const k=GK; if(q<=k[0][0]) return k[0][1]+(q-k[0][0])*(k[1][1]-k[0][1])/(k[1][0]-k[0][0]);
+  for(let i=1;i<k.length;i++) if(q<=k[i][0]) return k[i-1][1]+(q-k[i-1][0])*(k[i][1]-k[i-1][1])/(k[i][0]-k[i-1][0]);
+  const n=k.length-1; return k[n][1]+(q-k[n][0])*(k[n][1]-k[n-1][1])/(k[n][0]-k[n-1][0]); }
+function ginv(v){ const k=GK; if(v<=k[0][1]) return k[0][0]+(v-k[0][1])*(k[1][0]-k[0][0])/(k[1][1]-k[0][1]);
+  for(let i=1;i<k.length;i++) if(v<=k[i][1]) return k[i-1][0]+(v-k[i-1][1])*(k[i][0]-k[i-1][0])/(k[i][1]-k[i-1][1]);
+  const n=k.length-1; return k[n][0]+(v-k[n][1])*(k[n][0]-k[n-1][0])/(k[n][1]-k[n-1][1]); }
+// 物體在畫面上的位置只由 p 決定：Lp = 物體到感光元件的示意距離 = G + G/(G−1)，G = g(q)
+// （即「對焦時」示意透鏡的物距＋像距）。透鏡移動時，示意物距 pd = Lp − dd，
+// 示意像距由示意透鏡公式（焦距 1）求得 → 三條主要光線皆正確；d = q 時像點恰在感光元件上。
+function objL(p){ if(isInf(p)) return Infinity; const G=g(1/(1/F-1/p)); return G<=1+1e-12?Infinity:G+G/(G-1); }
+function disp(o){
+  const dd=g(o.d), Lp=objL(o.p);
+  const pd = isFinite(Lp) ? Lp-dd : Infinity;
+  const qd = isFinite(pd) ? pd/(pd-1) : 1;
+  return {qd,dd,pd,Lp};
+}
+let W=0,Hh=0,dpr=1, sensX, axisY, fd, lensX, Hpx, Apx, lensHalf, sensHalf, modHalf;
+function resize(){ const r=cv.getBoundingClientRect(); dpr=window.devicePixelRatio||1; W=r.width; Hh=r.height; cv.width=Math.round(W*dpr); cv.height=Math.round(Hh*dpr); draw(); }
+function setupScale(){
+  fd=(W-70)/5.37; sensX=W-30-1.0*fd; axisY=Hh*0.5;
+  lensX=sensX-g(S.d)*fd;
+  Hpx=Hh*0.17; Apx=Hh*0.155; lensHalf=Hh*0.18; sensHalf=Hh*0.17; modHalf=lensHalf+34;
+}
+const X = u => lensX + u*fd;            // u：示意距離（示意焦距為 1）
+const Y = y => axisY - y;               // y：像素
+function seg(px1,py1,px2,py2,color,w,dash){ ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=w||2; ctx.setLineDash(dash||[]); ctx.moveTo(px1,py1); ctx.lineTo(px2,py2); ctx.stroke(); ctx.setLineDash([]); }
+function uLeft(){ return (12-lensX)/fd; }
+function line(u1,y1,u2,y2,color,w,dash){
+  if(u1>u2){ [u1,u2]=[u2,u1]; [y1,y2]=[y2,y1]; }
+  const uv=uLeft(); if(u2<=uv) return;
+  if(!isFinite(u1)){ u1=uv; }        // 無窮遠：y1 已是該處高度
+  else if(u1<uv){ y1=y1+(y2-y1)*(uv-u1)/(u2-u1); u1=uv; }
+  seg(X(u1),Y(y1),X(u2),Y(y2),color,w,dash);
+}
+function ray(u0,y0,m,u1,color,w,dash){ seg(X(u0),Y(y0),X(u1),Y(y0+m*(u1-u0)),color,w,dash); }
+function arrowHead(px,py,dir,color,s){ s=s||12; ctx.beginPath(); ctx.fillStyle=color; ctx.moveTo(px,py); ctx.lineTo(px-s*.7,py+dir*s*1.3); ctx.lineTo(px+s*.7,py+dir*s*1.3); ctx.closePath(); ctx.fill(); }
+function label(text,px,py,color,size,align,bg){
+  ctx.font=`600 ${size||17}px "Noto Sans TC","Microsoft JhengHei",sans-serif`; ctx.textAlign=align||"center"; ctx.textBaseline="middle";
+  if(bg){ const m=ctx.measureText(text).width, ax=align==="left"?px:align==="right"?px-m:px-m/2; ctx.fillStyle=bg; ctx.fillRect(ax-5,py-12,m+10,24); }
+  ctx.fillStyle=color||"#eef3fb"; ctx.fillText(text,px,py);
+}
+function rrect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// ===== 手機與相機模組（示意剖面）=====
+function geomPhone(){
+  const back=sensX-0.45*fd, mx0=sensX-g(D_MAX)*fd-40, mx1=sensX+16;
+  return {back,mx0,mx1};
+}
+function drawPhoneBack(){
+  const {back,mx0,mx1}=geomPhone();
+  ctx.fillStyle="rgba(70,80,100,.30)"; ctx.fillRect(back,-10,W-back+10,Hh+20);
+  ctx.fillStyle="rgba(20,30,50,.9)"; ctx.fillRect(W-14,-10,14,Hh+20);
+  ctx.fillStyle="rgba(90,100,120,.30)"; rrect(mx0,axisY-modHalf,mx1-mx0,2*modHalf,12); ctx.fill();
+  // 致動器（上下）
+  const ax0=sensX-g(D_MAX)*fd-22, ax1=sensX-g(D_MIN)*fd+22;
+  ctx.fillStyle="rgba(200,140,60,.45)";
+  ctx.fillRect(ax0,axisY-modHalf+5,ax1-ax0,modHalf-lensHalf-14); ctx.fillRect(ax0,axisY+lensHalf+9,ax1-ax0,modHalf-lensHalf-14);
+}
+function drawPhoneFront(){
+  const {back,mx0,mx1}=geomPhone();
+  seg(back,-10,back,axisY-modHalf,"#8b97ad",3); seg(back,axisY+modHalf+34,back,Hh+10,"#8b97ad",3);
+  ctx.strokeStyle="#9aa6bb"; ctx.lineWidth=2.5; rrect(mx0,axisY-modHalf,mx1-mx0,2*modHalf,12); ctx.stroke();
+  ctx.fillStyle="rgba(180,220,255,.25)"; ctx.fillRect(mx0-3,axisY-lensHalf,6,2*lensHalf);
+  // 鏡座（隨透鏡移動）
+  const lx=X(0); ctx.strokeStyle="#c3cde0"; ctx.lineWidth=2; ctx.fillStyle="rgba(140,150,175,.5)";
+  for(const s of [-1,1]){ const y0=s<0?axisY-lensHalf-12:axisY+lensHalf+2; ctx.fillRect(lx-12,y0,24,10); ctx.strokeRect(lx-12,y0,24,10); }
+  // 機械限位：透鏡位置 d = 4.5 mm 與 4.0 mm
+  const ty=axisY-modHalf;
+  for(const [dd,t] of [[D_MAX,"4.5 mm"],[D_MIN,"4.0 mm"]]){
+    const px=sensX-g(dd)*fd;
+    ctx.fillStyle="#ffca28"; ctx.beginPath(); ctx.moveTo(px,ty+2); ctx.lineTo(px-7,ty-12); ctx.lineTo(px+7,ty-12); ctx.closePath(); ctx.fill();
+    label(t,px,ty-26,"#ffca28",15);
+  }
+}
+
+function draw(){
+  if(!W) return;
+  ctx.setTransform(dpr,0,0,dpr,0,0); setupScale();
+  const o=optics(), {p,d}=o, D=disp(o), {qd,dd,pd}=D;
+  ctx.fillStyle="#0e1a2e"; ctx.fillRect(0,0,W,Hh);
+  drawPhoneBack();
+
+  // 可對焦範圍（感光元件須落在 F′ ～ 4.5 mm 之間）
+  const b0=X(1), b1=X(g(D_MAX));
+  ctx.fillStyle="rgba(61,220,132,.13)"; ctx.fillRect(b0,axisY-sensHalf-6,b1-b0,2*sensHalf+12);
+  ctx.strokeStyle="rgba(61,220,132,.55)"; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+  ctx.strokeRect(b0,axisY-sensHalf-6,b1-b0,2*sensHalf+12); ctx.setLineDash([]);
+  label("可對焦範圍 4.0～4.5 mm",(b0+b1)/2,axisY+modHalf+18,"#3ddc84",16);
+
+  seg(0,axisY,W,axisY,"rgba(255,255,255,.45)",1.5,[10,6]);
+
+  // 光錐
+  const ms=y0=> (isFinite(pd)?(y0-Hpx)/pd:0) - y0;   // 折射後斜率（像素／示意單位）
+  const mT=ms(Apx), mB=ms(-Apx);
+  if(isFinite(pd)){ line(-pd,Hpx,0,Apx,"rgba(255,236,140,.55)",1.5); line(-pd,Hpx,0,-Apx,"rgba(255,236,140,.55)",1.5);
+    ctx.fillStyle="rgba(255,236,140,.10)"; ctx.beginPath(); const ul=Math.max(-pd,uLeft()), yl=s=>Hpx+(s*Apx-Hpx)*(ul+pd)/pd;
+    ctx.moveTo(X(ul),Y(yl(1))); ctx.lineTo(X(0),Y(Apx)); ctx.lineTo(X(0),Y(-Apx)); ctx.lineTo(X(ul),Y(yl(-1))); ctx.closePath(); ctx.fill(); }
+  else { // 無窮遠：整個鏡面的入射光彼此平行（平行主軸）
+    ctx.fillStyle="rgba(255,236,140,.10)"; ctx.fillRect(X(uLeft()),Y(Apx),X(0)-X(uLeft()),2*Apx); line(-Infinity,Apx,0,Apx,"rgba(255,236,140,.55)",1.5); line(-Infinity,-Apx,0,-Apx,"rgba(255,236,140,.55)",1.5); }
+  ctx.beginPath(); ctx.moveTo(X(0),Y(Apx)); ctx.lineTo(X(dd),Y(Apx+mT*dd)); ctx.lineTo(X(dd),Y(-Apx+mB*dd)); ctx.lineTo(X(0),Y(-Apx)); ctx.closePath();
+  ctx.fillStyle="rgba(255,236,140,.16)"; ctx.fill();
+  ray(0,Apx,mT,dd,"rgba(255,236,140,.85)",1.5); ray(0,-Apx,mB,dd,"rgba(255,236,140,.85)",1.5);
+  const behind = qd>dd+1e-9;                 // 像在感光元件後方：以虛線延伸到像點
+  const ue = behind ? qd : dd+0.07;
+  ray(dd,Apx+mT*dd,mT,ue,"rgba(255,236,140,.35)",1.2,[4,4]); ray(dd,-Apx+mB*dd,mB,ue,"rgba(255,236,140,.35)",1.2,[4,4]);
+
+  // 2F、F、F′、2F′（標籤在主軸下方，F′ 避開光線）
+  const m1=ms(Hpx), m2=isFinite(pd)?-Hpx/pd:0, y3=isFinite(pd)?-Hpx/(pd-1):0;
+  for(const u of [-2,-1,1,2]){
+    ctx.beginPath(); ctx.arc(X(u),axisY,Math.abs(u)===1?6:5,0,7); ctx.fillStyle="#ffca28"; ctx.fill();
+    let ly=axisY+24, lx=X(u), t=u===-2?"2F":u===-1?"F":u===1?"F′":"2F′";
+    if(u===1){ let lo=0; for(const uu of [0.82,1]) lo=Math.min(lo,-Apx+mB*uu,Apx+mT*uu,Hpx+m1*uu,m2*uu,y3); ly=Math.max(axisY+24,Y(lo)+18); lx=X(1)-14; }
+    label(t,lx,ly,"#ffca28",Math.abs(u)===1?18:16);
+  }
+
+  // 三條主要光線
+  if(isFinite(pd)) line(-pd,Hpx,0,Hpx,C1,3); else line(-Infinity,Hpx,0,Hpx,C1,3);
+  ray(0,Hpx,m1,dd,C1,3); ctx.globalAlpha=.75; ray(dd,Hpx+m1*dd,m1,ue,C1,2,[7,5]); ctx.globalAlpha=1;
+  if(isFinite(pd)) line(-pd,Hpx,0,0,C2,3); else line(-Infinity,0,0,0,C2,3);
+  ray(0,0,m2,dd,C2,3); ctx.globalAlpha=.75; ray(dd,m2*dd,m2,ue,C2,2,[7,5]); ctx.globalAlpha=1;
+  if(isFinite(pd)){ line(-pd,Hpx,0,y3,C3,3); ray(0,y3,0,dd,C3,3); ctx.globalAlpha=.75; ray(dd,y3,0,ue,C3,2,[7,5]); ctx.globalAlpha=1; }
+
+  // 像點（示意位置 g(q)）
+  const yi=isFinite(pd)?-Hpx*qd/pd:0, onS=Math.abs(d-o.q)<0.0015;
+  ctx.beginPath(); ctx.arc(X(qd),Y(yi),5,0,7); ctx.fillStyle="#3ddc84"; ctx.fill();
+  if(Math.abs(yi)>10){ seg(X(qd),axisY,X(qd),Y(yi),"rgba(61,220,132,.9)",3,onS?null:[5,4]); arrowHead(X(qd),Y(yi),-1,"rgba(61,220,132,.9)",11); }
+
+  // 透鏡
+  const lx=X(0), bulge=16;
+  const gr=ctx.createLinearGradient(lx-bulge,0,lx+bulge,0);
+  gr.addColorStop(0,"rgba(120,200,255,.3)"); gr.addColorStop(.5,"rgba(170,225,255,.65)"); gr.addColorStop(1,"rgba(120,200,255,.3)");
+  ctx.beginPath(); ctx.moveTo(lx,axisY-lensHalf); ctx.quadraticCurveTo(lx+bulge*2,axisY,lx,axisY+lensHalf); ctx.quadraticCurveTo(lx-bulge*2,axisY,lx,axisY-lensHalf);
+  ctx.fillStyle=gr; ctx.fill(); ctx.strokeStyle="#9fdcff"; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(lx,axisY,4,0,7); ctx.fillStyle="#fff"; ctx.fill();
+  drawPhoneFront();
+  label("凸透鏡",lx,axisY+modHalf+18,"#9fdcff",16);
+
+  // 物體
+  const ox=isFinite(pd)?X(-pd):-1;
+  if(ox>14){ seg(ox,axisY,ox,Y(Hpx),"#fff",6); arrowHead(ox,Y(Hpx),1,"#fff",14); label("物體",ox,Y(Hpx)-22,"#fff",17); }
+  else {
+    ctx.fillStyle="rgba(255,255,255,.9)"; ctx.beginPath(); ctx.moveTo(6,Y(Hpx)); ctx.lineTo(22,Y(Hpx)-11); ctx.lineTo(22,Y(Hpx)+11); ctx.closePath(); ctx.fill();
+    label(isInf(p)?"物體（無窮遠）":`物體（${fmtP(p)}）`,28,Y(Hpx)-26,"#fff",16,"left","rgba(0,0,0,.55)");
+  }
+
+  // 感光元件（固定）
+  ctx.fillStyle="#2a3a2e"; ctx.fillRect(sensX,axisY-sensHalf,8,2*sensHalf);
+  ctx.strokeStyle="#9fe0b0"; ctx.lineWidth=2; ctx.strokeRect(sensX,axisY-sensHalf,8,2*sensHalf);
+  label("感光元件",sensX+4,axisY-modHalf-16,"#9fe0b0",15);
+  // 模糊圈（示意寬度；清晰與否由實際數值判斷）
+  const yT=Apx+mT*dd, yB=-Apx+mB*dd, pyT=Y(Math.max(yT,yB)), pyB=Y(Math.min(yT,yB));
+  const cl=clarityLevel(o), bc=["#3ddc84","#ffca28","#ff6b6b"][cl];
+  if(cl>0){
+    const top=Math.min(pyT,(pyT+pyB)/2-2), h=Math.max(4,pyB-pyT);
+    ctx.fillStyle=bc; ctx.shadowColor=bc; ctx.shadowBlur=16; ctx.fillRect(sensX-3,top,7,h); ctx.shadowBlur=0;
+    // 標籤放在感光元件下端，引線起點避開所有光線
+    const lx2=sensX+12, ly=axisY+sensHalf+26, uu=dd+12/fd;
+    let lo=Math.min(yT,yB,-Apx+mB*uu,Apx+mT*uu,Hpx+m1*uu,m2*uu); if(isFinite(pd)) lo=Math.min(lo,y3);
+    const ly0=Math.max(top+h,Y(lo))+6;
+    if(ly0<ly-14) seg(lx2,ly0,lx2,ly-11,bc,1);
+    label("模糊圈",lx2,ly,bc,14,"center","rgba(0,0,0,.6)");
+  }
+
+  // 尺寸（顯示實際數值）
+  const yDim=Hh-34;
+  dimPx(Math.max(4,ox>14?ox:4),X(0),yDim,`p = ${fmtP(p)}`,"#fff");
+  dimPx(X(0),sensX,yDim,`d = ${d.toFixed(3)} mm`,"#9fdcff");
+  label("示意圖，長度未按比例",12,Hh-10,"rgba(169,184,211,.75)",12,"left");
+
+  const bn=$("banner"); let t,c;
+  if(cl===0){ t="清晰：d = q"; c="#3ddc84"; }
+  else if(o.q<d){ t="模糊：q < d，透鏡應縮回"; c="#ffca28"; }
+  else if(o.q>D_MAX && d>=D_MAX-1e-9){ t=`無法對焦：q = ${o.q.toFixed(2)} mm > 4.5 mm`; c="#ff6b6b"; }
+  else { t="模糊：q > d，透鏡應伸出"; c="#ffca28"; }
+  bn.textContent=t; bn.style.borderColor=c; bn.style.color=c;
+  updatePanel(o,cl); drawSensorView(o,cl);
+}
+function dimPx(a,b,py,text,color){
+  seg(a,py,b,py,color,1.5);
+  for(const px of [a,b]) seg(px,py-7,px,py+7,color,1.5);
+  label(text,(a+b)/2,py-14,color,15,"center","rgba(14,26,46,.85)");
+}
+function fmtP(p){ if(isInf(p)) return "∞"; if(p>=1000) return `${+(p/1000).toFixed(1)} m`; return `${+p.toFixed(p<100?1:0)} mm`; }
+function fmtB(b){ return `${b.toFixed(4)} mm（${(b*1000).toFixed(1)} μm）`; }
+function clarityLevel(o){ if(!o.real) return 2; if(o.b<=COC) return 0; if(o.b<=COC*5) return 1; return 2; }
+
+function updatePanel(o,cl){
+  $("oP").textContent=fmtP(o.p);
+  $("oQ").textContent=`${o.q.toFixed(3)} mm`;
+  $("oD").textContent=`${o.d.toFixed(3)} mm`;
+  $("lP").textContent=fmtP(o.p); $("lD").textContent=`${o.d.toFixed(3)} mm`;
+
+  const names=["清晰","略模糊","模糊"], cols=["#3ddc84","#ffca28","#ff6b6b"], tag=$("clarityTag");
+  const fail = o.q>D_MAX+1e-9;
+  tag.textContent = fail && S.d>=D_MAX-1e-9 ? "無法對焦" : names[cl]; tag.style.background=cols[fail&&S.d>=D_MAX-1e-9?2:cl]; tag.style.color="#0b1220";
+  const score=Math.max(0,1-Math.log10(1+o.b/COC)/Math.log10(150));
+  $("clarityFill").style.width=(score*100).toFixed(1)+"%"; $("clarityFill").style.background=cols[cl];
+  if(!S.anim){
+    let m="";
+    if(fail) m="d 最大 4.5 mm → 無法對焦";
+    setMsg(m);
+  }
+}
+function fmtNum(p){ return p>=1000? String(Math.round(p)) : p.toFixed(1); }
+function setMsg(t){ $("msg").textContent=t; }
+// ===== 感光元件視圖：程式繪製場景 =====
+const scene = document.createElement("canvas"); scene.width=640; scene.height=480;
+(function paintScene(){
+  const c=scene.getContext("2d");
+  const sky=c.createLinearGradient(0,0,0,480); sky.addColorStop(0,"#5fb4ff"); sky.addColorStop(1,"#d8efff");
+  c.fillStyle=sky; c.fillRect(0,0,640,480);
+  c.fillStyle="#fff3a0"; c.beginPath(); c.arc(530,85,42,0,7); c.fill();
+  c.fillStyle="#7d97b8"; c.beginPath(); c.moveTo(0,300); c.lineTo(140,170); c.lineTo(260,290); c.lineTo(380,150); c.lineTo(520,280); c.lineTo(640,220); c.lineTo(640,480); c.lineTo(0,480); c.fill();
+  c.fillStyle="#5cb85c"; c.fillRect(0,330,640,150);
+  // 樹（明顯上下不對稱）
+  c.fillStyle="#7a4b24"; c.fillRect(140,250,26,110);
+  c.fillStyle="#2e8b3a"; c.beginPath(); c.moveTo(153,110); c.lineTo(85,230); c.lineTo(221,230); c.fill();
+  c.beginPath(); c.moveTo(153,160); c.lineTo(70,280); c.lineTo(236,280); c.fill();
+  // 房子
+  c.fillStyle="#f4e1c1"; c.fillRect(330,260,150,100);
+  c.fillStyle="#c0392b"; c.beginPath(); c.moveTo(315,262); c.lineTo(405,195); c.lineTo(495,262); c.fill();
+  c.fillStyle="#5b3a1e"; c.fillRect(390,300,32,60);
+  c.fillStyle="#87cefa"; c.fillRect(345,280,34,28); c.fillRect(435,280,34,28);
+  // 不對稱字母，方便看出倒立/左右
+  c.fillStyle="#1a237e"; c.font="900 92px Arial,sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+  c.fillText("F",565,410);
+  c.strokeStyle="#000"; c.lineWidth=3; c.strokeRect(1.5,1.5,637,477);
+  // 細節條紋（模糊時最明顯）
+  for(let i=0;i<8;i++){ c.fillStyle=i%2?"#fff":"#222"; c.fillRect(20+i*14,420,14,40); }
+})();
+const filterOK = (()=>{ const t=document.createElement("canvas").getContext("2d"); return t && ("filter" in t); })();
+const tmp = document.createElement("canvas");
+function drawSensorView(o,cl){
+  const w=sv.width,h=sv.height;
+  sctx.save();
+  sctx.fillStyle="#000"; sctx.fillRect(0,0,w,h);
+  // 模糊半徑（像素）：模糊圈相對感光元件的大小
+  let blurPx = cl===0 ? 0 : Math.min(40, 0.8*o.b/COC);
+  if(!o.real) blurPx = 40;
+  if(blurPx < 0.35) blurPx = 0;
+  if(S.viewRaw){ sctx.translate(w,h); sctx.rotate(Math.PI); } // 實像：上下左右皆顛倒
+  if(filterOK){
+    sctx.filter = blurPx>0 ? `blur(${blurPx.toFixed(2)}px)` : "none";
+    const pad = blurPx*2;
+    sctx.drawImage(scene,-pad,-pad,w+2*pad,h+2*pad);
+    sctx.filter="none";
+  } else { // 後備方案：縮小再放大
+    const k=Math.max(1,blurPx/1.5); tmp.width=Math.max(4,w/k|0); tmp.height=Math.max(3,h/k|0);
+    tmp.getContext("2d").drawImage(scene,0,0,tmp.width,tmp.height);
+    sctx.imageSmoothingEnabled=true; sctx.drawImage(tmp,0,0,w,h);
+  }
+  sctx.restore();
+  if(!o.real){
+    sctx.fillStyle="rgba(0,0,0,.45)"; sctx.fillRect(0,h/2-40,w,80);
+    sctx.fillStyle="#ff6b6b"; sctx.font="800 34px 'Noto Sans TC','Microsoft JhengHei',sans-serif"; sctx.textAlign="center"; sctx.textBaseline="middle";
+    sctx.fillText("光線發散，無法在感光元件上成像",w/2,h/2);
+  }
+  // 對焦框
+  sctx.strokeStyle = ["#3ddc84","#ffca28","#ff6b6b"][cl]; sctx.lineWidth=5;
+  const bx=w*0.38,by=h*0.36,bw=w*0.24,bh=h*0.28, L=26;
+  sctx.beginPath();
+  for(const [x,y,dx,dy] of [[bx,by,1,1],[bx+bw,by,-1,1],[bx,by+bh,1,-1],[bx+bw,by+bh,-1,-1]]){
+    sctx.moveTo(x+dx*L,y); sctx.lineTo(x,y); sctx.lineTo(x,y+dy*L);
+  }
+  sctx.stroke();
+  if(false){ sctx.fillRect(8,8,250,36);
+  sctx.fillStyle="#fff"; sctx.font="600 22px 'Noto Sans TC','Microsoft JhengHei',sans-serif"; sctx.textAlign="left"; sctx.textBaseline="middle";
+  sctx.fillText("",16,26); }
+}
+
+
+// ===== 控制 =====
+function clampD(v){ return Math.min(D_MAX,Math.max(D_MIN,v)); }
+function setD(v){ S.d = Math.round(clampD(v)*10000)/10000; }
+function setP(p){ S.p = isInf(p) ? P_INF : Math.min(P_MAX,Math.max(P_MIN,p)); }
+function syncSliders(){ sP.value=pToSlider(S.p); sD.value=S.d; }
+function stopAnim(){ if(S.anim){ cancelAnimationFrame(S.anim); S.anim=null; } }
+sP.addEventListener("input",()=>{ stopAnim(); setP(sliderToP(+sP.value)); clearPreset(); draw(); });
+sD.addEventListener("input",()=>{ stopAnim(); setD(+sD.value); draw(); });
+function nudge(v){ stopAnim(); setD(S.d+v); syncSliders(); draw(); }
+
+$("viewRaw").onclick=()=>{ S.viewRaw=true; $("viewRaw").classList.add("on"); $("viewScreen").classList.remove("on"); draw(); };
+$("viewScreen").onclick=()=>{ S.viewRaw=false; $("viewScreen").classList.add("on"); $("viewRaw").classList.remove("on"); draw(); };
+
+function autoFocus(){
+  stopAnim();
+  const o=optics();
+  let target=o.q, note="";
+  if(target>D_MAX){ target=D_MAX; note="d 最大 4.5 mm → 無法對焦"; }
+  if(target<D_MIN) target=D_MIN;
+  const from=S.d, t0=performance.now(), dur=700+Math.min(1100,Math.abs(target-from)/0.5*1100);
+  setMsg(target>from?"對焦中：透鏡伸出…":(target<from?"對焦中：透鏡縮回…":""));
+  const step=now=>{
+    const t=Math.min(1,(now-t0)/dur), e=t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+    S.d=from+(target-from)*e; syncSliders(); draw();
+    if(t<1) S.anim=requestAnimationFrame(step);
+    else { S.anim=null; S.d=target; syncSliders(); draw(); setMsg(note||`對焦完成：d = q = ${target.toFixed(3)} mm`); }
+  };
+  S.anim=requestAnimationFrame(step);
+}
+$("afBtn").onclick=autoFocus;
+// 焦距遮罩：點擊任一「???」→ 全部淡出顯示；點擊數值或按 F 鍵 → 再遮住
+function toggleF(show){ document.body.classList.toggle("f-shown", show===undefined ? !document.body.classList.contains("f-shown") : show); }
+document.querySelectorAll(".fmask").forEach(m=>m.addEventListener("click",()=>toggleF(true)));
+document.querySelectorAll(".fval").forEach(v=>v.addEventListener("click",()=>{ if(document.body.classList.contains("f-shown")) toggleF(false); }));
+
+// 情境（只改物距，透鏡先不動；再按自動對焦）
+const PRESETS={
+  inf:{p:P_INF, text:""},
+  p4m:{p:4000, text:""},
+  p36:{p:36,   text:""},
+  p30:{p:30,   text:""}
+};
+function clearPreset(){ document.querySelectorAll(".preset").forEach(b=>b.classList.remove("active")); }
+function applyPreset(k){
+  stopAnim(); const pr=PRESETS[k]; setP(pr.p); syncSliders(); clearPreset();
+  document.querySelector(`[data-preset="${k}"]`).classList.add("active");
+  draw(); setMsg(pr.text);
+  const af=$("afBtn"); af.classList.remove("pulse"); void af.offsetWidth; af.classList.add("pulse");
+}
+document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
+
+window.addEventListener("keydown",e=>{
+  if(e.target.tagName==="INPUT" && (e.key==="ArrowLeft"||e.key==="ArrowRight")) return;
+  const k=e.key.toLowerCase();
+  if(k==="f"){ toggleF(); return; }
+  if(k==="a"||k===" "){ e.preventDefault(); autoFocus(); }
+  else if(k==="1") applyPreset("inf"); else if(k==="2") applyPreset("p4m"); else if(k==="3") applyPreset("p36"); else if(k==="4") applyPreset("p30");
+  else if(e.key==="ArrowLeft"||e.key==="ArrowRight"){ e.preventDefault(); const st=e.shiftKey?0.1:(e.altKey?0.001:0.01); nudge(st*(e.key==="ArrowLeft"?1:-1)); }
+});
+
+// 拖曳
+let drag=null, dragOff=0;
+function pos(e){ const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
+function hit(pt){
+  if(Math.abs(pt.x-X(0))<28 && Math.abs(pt.y-axisY)<lensHalf+10) return "lens";
+  const pd=disp(optics()).pd, ox=isFinite(pd)?X(-pd):-1;
+  if(ox>14 && Math.abs(pt.x-ox)<24 && pt.y>Y(Hpx)-30 && pt.y<axisY+20) return "obj";
+  return null;
+}
+cv.addEventListener("pointerdown",e=>{ const pt=pos(e), h=hit(pt); if(h){ drag=h; dragOff=h==="lens"?pt.x-X(0):0; stopAnim(); cv.setPointerCapture(e.pointerId); }});
+cv.addEventListener("pointermove",e=>{
+  const pt=pos(e);
+  if(!drag){ cv.style.cursor=hit(pt)?"ew-resize":"default"; return; }
+  if(drag==="obj"){
+    const Lp=Math.max(4.0001,(sensX-pt.x)/fd), G=(Lp-Math.sqrt(Lp*Lp-4*Lp))/2, q=ginv(G);
+    setP(q<=F+1e-9 ? P_MAX : 1/(1/F-1/q)); clearPreset();
+  } else setD(ginv((sensX-(pt.x-dragOff))/fd));
+  syncSliders(); draw();
+});
+const endDrag=()=>{ drag=null; };
+cv.addEventListener("pointerup",endDrag); cv.addEventListener("pointercancel",endDrag);
+
+syncSliders();
+if(window.ResizeObserver) new ResizeObserver(resize).observe(cv); else window.addEventListener("resize",resize);
+resize();
+window.__lensDemo={S,optics,draw,autoFocus,applyPreset,setD,setP,g,ginv,disp,screenPos:()=>{setupScale(); const D=disp(optics()); return {objX:isFinite(D.pd)?lensX-D.pd*fd:null, objY:axisY-Hpx, lensX, sensX, imgX:lensX+D.qd*fd};}};
+})();
+</script>
+</body>
+</html>
