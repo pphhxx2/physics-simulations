@@ -138,7 +138,7 @@
   <section id="loginView">
    <div class="card intro" id="introCard">
     <h2>闖關說明</h2>
-    <div id="introText"><p>看圖判斷方向，點選正確答案（電腦也可以用鍵盤方向鍵作答）。</p><ul><li>共三個階段，每一階段過關後才能進入下一階段。</li><li>每題有時間限制；答對時，本題剩下的秒數會加到下一題，可以一直累積。</li><li>答錯：只失去本題剩下的秒數，之前累積的加時保留；沒作答、時間用完：累積加時已耗盡，下一題從基本秒數開始。</li><li>圖上橘色的「電流？」標示要判斷電流方向的位置。</li></ul></div>
+    <div id="introText"><p>看圖判斷方向，點選正確答案（電腦也可以用鍵盤方向鍵作答）。</p><ul><li>共三個階段，每一階段過關後才能進入下一階段。</li><li>每題有時間限制；答對時，本題剩下的秒數會加到下一題，可以一直累積。</li><li>答錯：只失去本題剩下的秒數，之前累積的加時保留；時間到則本題答錯。</li><li>圖上橘色的「電流？」標示要判斷電流方向的位置。</li></ul></div>
    </div>
    <div class="card">
     <h2>學生登入</h2>
@@ -167,7 +167,7 @@
     <h2>選擇闖關階段</h2>
     <div class="testnote hidden" id="testNote"><span class="tbadge">測試模式</span> 可任選階段，成績不會記錄</div>
     <div class="rule" id="ruleText">全部答對才能進入下一階段</div>
-    <div class="hint" id="timeHint">答對時，本題剩下的秒數會加到下一題（可累積）；答錯只失去本題剩下的秒數，之前累積的加時保留；沒作答、時間用完時，累積加時已耗盡，下一題從基本秒數開始。</div>
+    <div class="hint" id="timeHint">答對時，本題剩下的秒數會加到下一題（可累積）；答錯只失去本題剩下的秒數，之前累積的加時保留；時間到則本題答錯。</div>
     <div id="stageList"></div>
     <div class="overall" id="overallText"></div>
     <div id="stageMsg" class="msg error"></div>
@@ -287,7 +287,7 @@ function renderIntro(text) {
 function setTimeHint(keep) {
   if (keep === undefined || keep === null) return;
   $("timeHint").textContent = "答對時，本題剩下的秒數會加到下一題（可累積）；" +
-    (keep ? "答錯只失去本題剩下的秒數，之前累積的加時保留；沒作答、時間用完時，累積加時已耗盡，下一題從基本秒數開始。" : "答錯或時間到，累積的加時歸零。");
+    (keep ? "答錯只失去本題剩下的秒數，之前累積的加時保留；時間到則本題答錯。" : "答錯或時間到，累積的加時歸零。");
 }
 (async function loadInfo() {
   try {
