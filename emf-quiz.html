@@ -90,6 +90,7 @@
   .dots { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:12px 0; }
   .dot { width:46px; text-align:center; border-radius:8px; padding:2px 0; font-size:.8em; font-weight:bold; }
   .dot.ok { background:#e8f5e9; color:var(--ok); } .dot.bad { background:#ffebee; color:var(--bad); }
+  .dot .d3 { font-size:.85em; font-weight:normal; }
   .center { text-align:center; }
   /* 測試模式 */
   .orline { text-align:center; color:#7a8595; margin:2px 0 12px; font-weight:bold; }
@@ -151,7 +152,7 @@
    <div class="card intro" id="introCard">
     <h2>闖關說明</h2>
     <div class="opentext hidden" id="openText"></div>
-    <div id="introText"><p>看圖判斷方向，點選正確答案（電腦也可以用鍵盤方向鍵作答）。</p><ul><li>共三個階段，每一階段過關後才能進入下一階段。</li><li>每題有時間限制；答對時，本題剩下的秒數會加到下一題，可以一直累積。</li><li>答錯：只失去本題剩下的秒數，之前累積的加時保留；時間到則本題答錯。</li><li>圖上橘色的「電流？」標示要判斷電流方向的位置。</li></ul></div>
+    <div id="introText"><p>看圖判斷方向，點選正確答案（電腦也可以用鍵盤方向鍵作答）。</p><ul><li>共三個階段，每一階段過關後才能進入下一階段。</li><li>每題有時間限制；答對時，本題剩下的秒數會加到下一題，可以一直累積。</li><li>答錯：只失去本題剩下的秒數，之前累積的加時保留；時間到則本題答錯。</li><li>圖上橘色的「電流？」標示要判斷電流方向的位置。</li><li>立體圖的答案依圖上的標示判斷（例如「由上往下看」、由 P 流向 Q、東西南北）。</li></ul></div>
    </div>
    <div class="card">
     <h2>學生登入</h2>
@@ -194,6 +195,7 @@
       <div class="timerrow"><span>剩餘 <span class="timeleft" id="timeLeft">0.0</span> 秒</span><span class="bonus zero" id="bonus">累積加時 +0.0 秒</span></div>
       <div class="bar"><div class="fill" id="barFill"></div><div class="basemark hidden" id="baseMark"></div></div>
     </div>
+    <div class="testnote hidden" id="typeWarn"></div>
     <div class="qgrid">
       <div class="prompt" id="prompt"></div>
       <div class="diagram"><div id="svgBox"></div><div class="fb hidden" id="fb"></div></div>
@@ -235,7 +237,8 @@ let busy = false;
 let testMode = false;     // 測試模式（不登入、不記錄）
 
 const LABEL = { up:"向上", down:"向下", left:"向左", right:"向右", in:"垂直穿入紙面", out:"垂直穿出紙面", cw:"順時針", ccw:"逆時針" };
-const TYPE_NAME = { 1:"線圈", 2:"軌道", 3:"單棒", 4:"磁鐵", 5:"電流" };
+const TYPE_NAME = { 1:"線圈", 2:"軌道", 3:"單棒", 4:"磁鐵", 5:"電流", 6:"線圈", 7:"軌道", 8:"單棒", 9:"磁鐵", 10:"導線", 11:"螺管" };
+const COMPASS_KEY = { up:"north", down:"south", left:"west", right:"east" };   // 方向鍵 → 東西南北選項
 
 function show(view) {
   ["loginView","stageView","quizView","resultView"].forEach(v => $(v).classList.toggle("hidden", v !== view));
@@ -367,11 +370,15 @@ async function startStage(stage) {
   if (busy) return; busy = true;
   setMsg($("stageMsg"), "準備題目中…", false);
   try {
-    const d = await callApi(testMode ? { action:"start", test:true, stage }
-                                     : { action:"start", id:cred.id, birthday:cred.birthday, pid:cred.pid, stage });
+    // support3d：這個網頁會畫立體題（舊版伺服器會忽略，只出平面題）
+    const d = await callApi(testMode ? { action:"start", test:true, stage, support3d:true }
+                                     : { action:"start", id:cred.id, birthday:cred.birthday, pid:cred.pid, stage, support3d:true });
     if (!d.ok) throw new Error(d.error || "無法開始");
     setMsg($("stageMsg"), "");
     quiz = { token:d.token, stage:d.stage, stageName:d.stageName, total:d.total, base:d.base, correct:0, lastStage:stage };
+    // 題型設定有問題時（某階段沒有選任何題型）伺服器會改用全部題型並回傳提醒；只在測試模式顯示給老師看
+    $("typeWarn").textContent = testMode && d.warning ? "⚠ " + d.warning : "";
+    $("typeWarn").classList.toggle("hidden", !(testMode && d.warning));
     show("quizView");
     showQuestion(d.q, d.allowance, d.carry);
   } catch (err) { setMsg($("stageMsg"), err.message, true); }
@@ -410,14 +417,15 @@ function renderOptions(options) {
   options.forEach((o, i) => {
     const b = document.createElement("button");
     b.type = "button"; b.className = "opt"; b.dataset.k = o.k;
-    if (four) b.style.gridArea = o.k;
+    if (four) b.style.gridArea = { north:"up", south:"down", west:"left", east:"right" }[o.k] || o.k;
     b.innerHTML = icon(o.k, four ? 30 : 36) + "<span>" + o.t + "</span>";
     b.addEventListener("click", () => choose(o.k));
     box.appendChild(b);
   });
   const ks = options.map(o => o.k);
   const dirs = ks.every(k => ["up","down","left","right"].includes(k));
-  $("keyHint").textContent = dirs ? "電腦可用鍵盤方向鍵 ↑ ↓ ← → 作答" : "電腦可用鍵盤 ← 選左邊、→ 選右邊";
+  const cmp = ks.every(k => ["north","south","west","east"].includes(k));
+  $("keyHint").textContent = dirs ? "電腦可用鍵盤方向鍵 ↑ ↓ ← → 作答" : cmp ? "電腦可用鍵盤方向鍵作答：↑北 ↓南 ←西 →東" : "電腦可用鍵盤 ← 選左邊、→ 選右邊";
 }
 
 function tick() {
@@ -555,6 +563,7 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
   const ks = quiz.q.options.map(o => o.k);
   if (dir && ks.includes(dir)) return choose(dir);
+  if (dir && ks.includes(COMPASS_KEY[dir])) return choose(COMPASS_KEY[dir]);
   if (ks.length === 2) {
     if (dir === "left" || e.key === "1") return choose(ks[0]);
     if (dir === "right" || e.key === "2") return choose(ks[1]);
@@ -579,7 +588,7 @@ function showResult(s) {
     st.textContent = (s.passCount >= s.total ? "全部答對才能進入下一階段，" : "答對 " + s.passCount + " 題以上才能過關，") + "再試一次！";
   }
   $("resDots").innerHTML = s.details.map((r, i) =>
-    '<div class="dot ' + (r.ok ? "ok" : "bad") + '">' + (i + 1) + (r.ok ? "✓" : "✗") + "<br>" + TYPE_NAME[r.t] + "</div>").join("");
+    '<div class="dot ' + (r.ok ? "ok" : "bad") + '">' + (i + 1) + (r.ok ? "✓" : "✗") + "<br>" + (TYPE_NAME[r.t] || "") + (r.t >= 6 ? '<br><span class="d3">立體</span>' : "") + "</div>").join("");
   $("resBest").textContent = s.test ? "" : "本階段最佳：" + s.stageBest + " 分　｜　全部最高分：" + s.overall + " 分（成績已記錄）";
   const nb = $("nextStageBtn");
   const nextStage = stages.find(x => x.stage === s.stage + 1);
@@ -603,7 +612,12 @@ function icon(k, sz) {
   if (k === "left") return a(270);
   if (k === "in") return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40"><line x1="9" y1="9" x2="31" y2="31" stroke="' + c + '" stroke-width="5" stroke-linecap="round"/><line x1="31" y1="9" x2="9" y2="31" stroke="' + c + '" stroke-width="5" stroke-linecap="round"/></svg>';
   if (k === "out") return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40"><circle cx="20" cy="20" r="7.5" fill="' + c + '"/></svg>';
-  return rotIcon(k === "cw", sz, c);
+  if (k === "cw" || k === "ccw") return rotIcon(k === "cw", sz, c);
+  // 東西南北：箭頭方向和立體圖一致（東＝右、北＝往紙內，畫成右上 40°）
+  const nRot = Math.round(Math.atan2(Math.cos(40 * Math.PI / 180), Math.sin(40 * Math.PI / 180)) * 180 / Math.PI);
+  const cmp = { east:90, west:270, north:nRot, south:nRot + 180 }[k];
+  if (cmp !== undefined) return a(cmp).replace("<svg ", '<svg class="cmp" data-k="' + k + '" ');
+  return "";   // P→Q、a 端、甲端…：只有文字
 }
 /* 順時針／逆時針圖示：圓弧（約 290°）＋箭頭畫在圓弧的「終點」，箭頭方向＝前進方向。
    畫面座標 y 向下，所以角度增加＝順時針。逆時針圖示為順時針圖示的左右鏡像。 */
@@ -721,7 +735,9 @@ function drawQuestion(p) {
     if (p.type === 2) return draw2(p);
     if (p.type === 3) return draw3(p);
     if (p.type === 4) return p.variant === "ring" ? draw4ring(p) : draw4coil(p);
-    return draw5(p);
+    if (p.type === 5) return draw5(p);
+    const D3 = { 6:draw6, 7:draw7, 8:draw8, 9:draw9, 10:draw10, 11:draw11 };   // 立體題
+    return D3[p.type](p);
   } catch (e) { return svgWrap(txt(200, 150, "圖形載入失敗", 20)); }
 }
 
@@ -966,6 +982,308 @@ function draw5(p) {
   s += arrowHead(downX, 212, "down", COL.I, 22);
   s += txt(xa - 30, yc, "左", 20, "#555") + txt(xb + 52, yc, "右", 20, "#555");
   return svgWrap(s + legendText("實線：線圈前側導線　虛線：後側導線"));
+}
+
+/* ================= 立體題（固定視角的斜投影，不能旋轉） =================
+   3D 座標：x＝東（畫面右）、y＝北（往紙內：畫面右上 40°、長度 ×0.62）、z＝鉛直向上。
+   水平面上的圖形經過這個投影後左右、前後不會翻轉，所以「由上往下看」的順／逆時針和畫面上看到的一致。 */
+const OB_A = 40 * Math.PI / 180, OB_K = 0.62, OBX = OB_K * Math.cos(OB_A), OBY = OB_K * Math.sin(OB_A);
+const V3 = { "+x":[1,0,0], "-x":[-1,0,0], "+y":[0,1,0], "-y":[0,-1,0], "+z":[0,0,1], "-z":[0,0,-1] };
+function view3(ox, oy, s) { const P = (x, y, z) => [ox + s * (x + y * OBX), oy - s * (z + y * OBY)]; P.s = s; return P; }
+/* 把一組 3D 點的投影放進畫面方框 box=[x0,y0,x1,y1]（置中；比例尺最大 sMax，放不下就縮小） */
+function fit3(pts, sMax, box) {
+  const P0 = view3(0, 0, 1); let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+  pts.forEach(q => { const [X, Y] = P0(q[0], q[1], q[2]); a = Math.min(a, X); c = Math.max(c, X); b = Math.min(b, Y); d = Math.max(d, Y); });
+  const s = Math.min(sMax, (box[2] - box[0]) / (c - a), (box[3] - box[1]) / (d - b));
+  return view3((box[0] + box[2]) / 2 - s * (a + c) / 2, (box[1] + box[3]) / 2 - s * (b + d) / 2, s);
+}
+const f1 = (v) => Math.round(v * 10) / 10;
+function pp(P, q) { const r = P(q[0], q[1], q[2]); return f1(r[0]) + "," + f1(r[1]); }
+function poly3(P, pts, attrs) { return '<polygon points="' + pts.map(q => pp(P, q)).join(" ") + '" ' + attrs + '/>'; }
+function seg3(P, a, b, color, w, extra) { const A = P(...a), B = P(...b); return line(f1(A[0]), f1(A[1]), f1(B[0]), f1(B[1]), color, w, extra); }
+function wire3(P, a, b, color, w) { const A = P(...a), B = P(...b); return wire(f1(A[0]), f1(A[1]), f1(B[0]), f1(B[1]), color, w); }
+function arrow3(P, a, b, color, w, head) { const A = P(...a), B = P(...b); return arrow(f1(A[0]), f1(A[1]), f1(B[0]), f1(B[1]), color, w, head); }
+function at3(P, q, dx, dy) { const r = P(q[0], q[1], q[2]); return [f1(r[0] + (dx || 0)), f1(r[1] + (dy || 0))]; }
+
+/* 細的磁場箭頭（螢幕座標 A→B，有白色細外框；head：B 端畫箭頭） */
+function fArrow(A, B, head) {
+  const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, h = 10, hw = 5;
+  const E = head ? [B[0] - ux * h, B[1] - uy * h] : B;
+  let s = line(f1(A[0]), f1(A[1]), f1(E[0]), f1(E[1]), "#fff", 6) + line(f1(A[0]), f1(A[1]), f1(E[0]), f1(E[1]), COL.field, 2.2);
+  if (head) {
+    const pts = f1(B[0]) + "," + f1(B[1]) + " " + f1(E[0] - uy * hw) + "," + f1(E[1] + ux * hw) + " " + f1(E[0] + uy * hw) + "," + f1(E[1] - ux * hw);
+    s += '<polygon points="' + pts + '" fill="' + COL.field + '" stroke="#fff" stroke-width="2" paint-order="stroke"/>';
+  }
+  return s;
+}
+/* 鉛直磁場箭頭：以 z=0 平面（導線、線圈所在的平面）切成上下兩半；
+   下半段先畫（被導線蓋住）、上半段最後畫（蓋在導線上）→ 看得出箭頭「穿過」水平面 */
+function vField(P, xy, z0, z1, up) {
+  let lo = "", hi = "";
+  xy.forEach(([x, y]) => {
+    const A = P(x, y, z0), M = P(x, y, 0), B = P(x, y, z1);
+    if (up) { lo += fArrow(A, M, false); hi += fArrow(M, B, true); }
+    else { hi += fArrow(B, M, false); lo += fArrow(M, A, true); }
+  });
+  return { lo: '<g class="b3 b3lo">' + lo + '</g>', hi: '<g class="b3 b3hi">' + hi + '</g>' };
+}
+/* 磁場區（長方體）：底色＋底面（底圖）、被擋住的三條邊畫虛線；看得到的九條邊最後畫 */
+function box3(P, x0, x1, y0, y1, z0, z1) {
+  const C = (i, j, k) => [i ? x1 : x0, j ? y1 : y0, k ? z1 : z0];
+  const sil = [C(0,0,0), C(1,0,0), C(1,1,0), C(1,1,1), C(0,1,1), C(0,0,1)];
+  const ec = "#9fa8da";
+  const back = '<g class="box-back">' + poly3(P, sil, 'fill="' + COL.fieldBg + '"') +
+    poly3(P, [C(0,0,0), C(1,0,0), C(1,1,0), C(0,1,0)], 'fill="#dfe3f6"') +
+    seg3(P, C(0,1,0), C(1,1,0), ec, 1.5, 'stroke-dasharray="5 4"') + seg3(P, C(0,1,0), C(0,0,0), ec, 1.5, 'stroke-dasharray="5 4"') +
+    seg3(P, C(0,1,0), C(0,1,1), ec, 1.5, 'stroke-dasharray="5 4"') + '</g>';
+  const E = [[C(0,0,1), C(1,0,1)], [C(1,0,1), C(1,1,1)], [C(1,1,1), C(0,1,1)], [C(0,1,1), C(0,0,1)],
+             [C(0,0,0), C(1,0,0)], [C(0,0,0), C(0,0,1)], [C(1,0,0), C(1,0,1)], [C(1,0,0), C(1,1,0)], [C(1,1,0), C(1,1,1)]];
+  const front = '<g class="box-front">' + E.map(e => seg3(P, e[0], e[1], ec, 1.8)).join("") + '</g>';
+  return { back, front };
+}
+/* 水平面（桌面）：半透明，畫在下半段磁場箭頭之後 → 下半段看起來在桌面下 */
+function plate3(P, x0, x1, y0, y1, z, fill, op) {
+  return '<g class="plate">' + poly3(P, [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], 'fill="' + (fill || "#eceff1") + '" fill-opacity="' + (op || 0.82) + '" stroke="#b0bec5" stroke-width="1.6"') + '</g>';
+}
+/* 「由上往下看」：眼睛朝下＋箭頭 */
+function eyeDown(x, y) {
+  return '<g class="eyedown"><g transform="translate(' + x + ',' + y + ') rotate(90)"><path d="M -14 0 Q 0 -11 14 0 Q 0 11 -14 0 Z" fill="#fff" stroke="#6a1b9a" stroke-width="2.5"/><circle cx="4" cy="0" r="4.5" fill="#6a1b9a"/></g>' +
+    arrow(x, y + 17, x, y + 50, "#6a1b9a", 3, 11) + txt(x + 17, y + 2, "由上往下看", 16, "#6a1b9a", "start", "bold") + '</g>';
+}
+/* 方位：東（右）、北（右上，往紙內）、上 */
+function triad(x, y) {
+  const L = 36, nx = x + L * Math.cos(OB_A), ny = y - L * Math.sin(OB_A);
+  return '<g class="triad">' + arrow(x, y, x + L, y, "#607d8b", 2.5, 9) + arrow(x, y, f1(nx), f1(ny), "#607d8b", 2.5, 9) + arrow(x, y, x, y - L, "#607d8b", 2.5, 9) +
+    txt(x + L + 11, y, "東", 15, "#455a64") + txt(f1(nx + 9), f1(ny - 8), "北", 15, "#455a64") + txt(x, y - L - 11, "上", 15, "#455a64") + '</g>';
+}
+/* 水平圓：t∈[0,2π)，(x,y)=(cx+R cos t, cy+R sin t)；sin t>0 為後半（北側） */
+function ringH(P, cx, cy, z, R, color, wf, wb) {
+  const N = 96;
+  // 前半：t∈[π,2π]（南側、靠近看圖的人），後半：t∈[0,π]
+  const fr = [], bk = [];
+  for (let i = 0; i <= N / 2; i++) { const t = Math.PI + Math.PI * i / (N / 2); fr.push([cx + R * Math.cos(t), cy + R * Math.sin(t), z]); bk.push([cx + R * Math.cos(t - Math.PI), cy + R * Math.sin(t - Math.PI), z]); }
+  const path = (a) => "M" + a.map(q => pp(P, q)).join(" L");
+  return {
+    back: '<path class="ring3-back" d="' + path(bk) + '" fill="none" stroke="' + color + '" stroke-opacity="0.5" stroke-width="' + wb + '" stroke-linecap="round"/>',
+    front: '<path class="ring3-front" d="' + path(fr) + '" fill="none" stroke="' + color + '" stroke-width="' + wf + '" stroke-linecap="round"/>'
+  };
+}
+/* 鉛直圓柱磁棒：zA（下端）～zB（上端），下半 poleA、上半 poleB；有明暗與頂面 */
+function cylV(P, x, y, zA, zB, r, poleA, poleB) {
+  const ts = Math.atan(OBX), N = 32;
+  const arc = (z, t0, t1) => { const a = []; for (let i = 0; i <= N; i++) { const t = t0 + (t1 - t0) * i / N; a.push([x + r * Math.cos(t), y + r * Math.sin(t), z]); } return a; };
+  const front = (z) => arc(z, ts + Math.PI, ts + 2 * Math.PI);
+  const body = (z0, z1, fill) => poly3(P, front(z0).concat(front(z1).reverse()), 'fill="' + fill + '"');
+  const zm = (zA + zB) / 2;
+  let s = '<g class="magnet3">' + body(zA, zm, COL[poleA]) + body(zm, zB, COL[poleB]);
+  s += poly3(P, front(zA).concat(front(zB).reverse()), 'fill="url(#cylShade)" stroke="#333" stroke-width="1.5"');
+  s += poly3(P, arc(zB, 0, 2 * Math.PI), 'fill="' + COL[poleB] + '" stroke="#333" stroke-width="1.5"') + poly3(P, arc(zB, 0, 2 * Math.PI), 'fill="#fff" fill-opacity="0.35"');
+  const la = at3(P, [x, y - r * 0.6, (zA + zm) / 2]), lb = at3(P, [x, y - r * 0.6, (zm + zB) / 2]);
+  s += '<text x="' + la[0] + '" y="' + la[1] + '" font-size="24" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">' + poleA + '</text>';
+  s += '<text x="' + lb[0] + '" y="' + lb[1] + '" font-size="24" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">' + poleB + '</text>';
+  return s + '</g>';
+}
+const DEFS3 = '<defs><linearGradient id="cylShade" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.28"/><stop offset="0.4" stop-color="#fff" stop-opacity="0.22"/><stop offset="1" stop-color="#000" stop-opacity="0.32"/></linearGradient></defs>';
+/* 立體螺線管：軸沿 x（x0→x1），軸高 zc，半徑 r。參數 t∈[0,1]：θ = −π/2 + wind·2π·turns·t，
+   (y, z) = (r cosθ, zc + r sinθ)。wind=+1：沿 +x 前進時繞 +x 軸右手方向。y<0 為前側（實線）、y>0 後側（虛線）。
+   起點、終點都在線圈最下方（θ ≡ −π/2），由那裡接到下方電池。 */
+function helix3pts(x0, x1, zc, r, turns, wind, N) {
+  const pts = [];
+  for (let i = 0; i <= N; i++) { const t = i / N, th = -Math.PI / 2 + wind * 2 * Math.PI * turns * t; pts.push([x0 + (x1 - x0) * t, r * Math.cos(th), zc + r * Math.sin(th)]); }
+  return pts;
+}
+function helix3svg(P, pts) {
+  let back = "", front = "", prev = null;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], side = (a[1] + b[1]) / 2 < 0 ? "f" : "b";
+    const add = (side === prev ? " L" : " M" + pp(P, a) + " L") + pp(P, b);
+    if (side === "f") front += add; else back += add;
+    prev = side;
+  }
+  return '<path class="hx-back" d="' + back + '" fill="none" stroke="#8a96a3" stroke-width="2.5" stroke-dasharray="6 5"/>' +
+         '<path class="hx-front" d="' + front + '" fill="none" stroke="' + COL.coil + '" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>';
+}
+function svgWrap3(inner) { return svgWrap(DEFS3 + inner); }
+function bLegend(B) { return { "+z":"磁場 B 鉛直向上", "-z":"磁場 B 鉛直向下", "+y":"磁場 B 水平指向北", "-y":"磁場 B 水平指向南" }[B]; }
+/* 網格點（避開線圈、導線附近） */
+function gridPts(x0, x1, y0, y1, nx, ny, avoid) {
+  const out = [];
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+    const x = x0 + (x1 - x0) * (i + 0.5) / nx, y = y0 + (y1 - y0) * (j + 0.5) / ny;
+    if (!avoid || !avoid(x, y)) out.push([x, y]);
+  }
+  return out;
+}
+const nearSeg = (x, y, a, b, d) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy; let t = L2 ? ((x - a[0]) * dx + (y - a[1]) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy) < d; };
+
+/* B1（type 6）水平正方形線圈進出鉛直磁場區 */
+function draw6(p) {
+  const ax = p.region[1], sg = p.region[0] === "+" ? 1 : -1, Lb = 2.7, Hz = 0.95;
+  const bx = ax === "x" ? (sg > 0 ? [0, Lb] : [-Lb, 0]) : [-1.85, 1.85];
+  const by = ax === "y" ? (sg > 0 ? [0, Lb] : [-Lb, 0]) : [-1.75, 1.75];
+  const v = V3[p.v], h = 1;
+  const varrow = ax === "x" ? [[-0.6 * v[0], -2.15, 0], [0.6 * v[0], -2.15, 0]] : [[2.3, -0.7 * v[1], 0], [2.3, 0.7 * v[1], 0]];
+  const P = fit3([[bx[0], by[0], -Hz], [bx[1], by[1], Hz], [bx[0], by[1], Hz], [bx[1], by[0], -Hz], [-h, -h, 0], [h, h, 0], varrow[0], varrow[1]], 80, [26, 66, 392, 294]);
+  const box = box3(P, bx[0], bx[1], by[0], by[1], -Hz, Hz);
+  const C = [[-h, -h, 0], [h, -h, 0], [h, h, 0], [-h, h, 0]];
+  const avoid = (x, y) => C.some((c, i) => nearSeg(x, y, c, C[(i + 1) % 4], 0.18));
+  const nx = ax === "x" ? 3 : 4, ny = ax === "x" ? 4 : 3;
+  const f = vField(P, gridPts(bx[0], bx[1], by[0], by[1], nx, ny, avoid), -Hz, Hz, p.B === "+z");
+  let s = box.back + f.lo;
+  // 磁場邊界（線圈所在平面上的虛線）
+  s += ax === "x" ? seg3(P, [0, by[0], 0], [0, by[1], 0], COL.field, 2, 'stroke-dasharray="7 5"') : seg3(P, [bx[0], 0, 0], [bx[1], 0, 0], COL.field, 2, 'stroke-dasharray="7 5"');
+  s += '<g class="loop3">' + C.map((c, i) => wire3(P, c, C[(i + 1) % 4], COL.wire, 4.5)).join("") + '</g>';
+  s += f.hi + box.front;
+  const vl = at3(P, varrow[1], ax === "x" ? v[0] * 14 : 14, ax === "x" ? -12 : 0);
+  s += arrow3(P, varrow[0], varrow[1], COL.v, 5, 18) + sym(vl[0], vl[1], "v", 26, COL.v);
+  s += eyeDown(30, 14);
+  return svgWrap3(s + legendText(bLegend(p.B) + "；線圈水平放置"));
+}
+
+/* B2（type 7）水平導軌＋金屬棒＋電阻 R（P、Q 為 R 的兩端） */
+function draw7(p) {
+  const ax = p.rails, Rs = p.R[0] === "+" ? 1 : -1, v = V3[p.v], L = ax === "x" ? 1.75 : 2.1, w = ax === "x" ? 1.2 : 0.95, Hz = ax === "x" ? 1.35 : 1.0;
+  const A = (u, c) => ax === "x" ? [u, c, 0] : [c, u, 0];   // u：沿導軌，c：橫向（P 在 −w、Q 在 +w）
+  const uR = Rs * L, uRod = -Rs * 0.55;
+  const plateU = [-L - 0.45, L + 0.45], plateC = [-w - 0.85, w + 0.85];
+  const pl = ax === "x" ? [plateU[0], plateU[1], plateC[0], plateC[1]] : [plateC[0], plateC[1], plateU[0], plateU[1]];
+  const tagRoom = ax === "x" ? (Rs > 0 ? [8, 20, 312, 292] : [88, 20, 392, 292]) : (Rs > 0 ? [10, 84, 390, 294] : [10, 20, 390, 252]);
+  const P = fit3([[pl[0], pl[2], -Hz], [pl[1], pl[3], Hz], [pl[0], pl[3], Hz], [pl[1], pl[2], -Hz]], 70, tagRoom);
+  const segs = [[A(uR, -w), A(uR, w)], [A(uRod, -w - 0.3), A(uRod, w + 0.3)]];
+  const fxy = [];   // 磁場箭頭：橫向避開兩條導軌，沿導軌方向避開 R 與金屬棒
+  for (const c of [-w - 0.45, 0, w + 0.45]) for (let i = 0; i < 6; i++) { const u = -L - 0.1 + (2 * L + 0.2) * (i + 0.5) / 6, q = A(u, c); if (!segs.some(sg => nearSeg(q[0], q[1], sg[0], sg[1], 0.3))) fxy.push([q[0], q[1]]); }
+  const f = vField(P, fxy, -Hz, Hz, p.B === "+z");
+  let s = f.lo + plate3(P, pl[0], pl[1], pl[2], pl[3], 0, "#eef0fb", 0.78);
+  const RP = P(...A(uR, -w)), RQ = P(...A(uR, w));
+  s += askHighlight(f1(RP[0]), f1(RP[1]), f1(RQ[0]), f1(RQ[1]));
+  s += wire3(P, A(-L, -w), A(L, -w), COL.wire, 4.5) + wire3(P, A(-L, w), A(L, w), COL.wire, 4.5);
+  s += resistor(f1(RP[0]), f1(RP[1]), f1(RQ[0]), f1(RQ[1]), false);
+  s += wire3(P, A(uRod, -w - 0.3), A(uRod, w + 0.3), "#546e7a", 9);
+  s += f.hi;
+  // P、Q 標示（R 的兩端，在電阻外側）與 R
+  const out = ax === "x" ? [Rs * 22, 0] : [0, -Rs * 22];
+  const Rm = [(RP[0] + RQ[0]) / 2, (RP[1] + RQ[1]) / 2];
+  if (ax === "x") { s += sym(f1(RP[0] + Rs * 4), f1(RP[1] + 24), "P", 26, "#111") + sym(f1(RQ[0] + Rs * 4), f1(RQ[1] - 24), "Q", 26, "#111") + sym(f1(Rm[0] - Rs * 34), f1(Rm[1] + 4), "R", 24, "#111"); }
+  else { s += sym(f1(RP[0] - 22), f1(RP[1] + (Rs > 0 ? -4 : 4)), "P", 26, "#111") + sym(f1(RQ[0] + 22), f1(RQ[1] + (Rs > 0 ? -4 : 4)), "Q", 26, "#111") + sym(f1(Rm[0] + 2), f1(Rm[1] + Rs * 24), "R", 24, "#111"); }
+  // 速度箭頭（在棒中點沿導軌方向）
+  const v0 = A(uRod + 0.18 * (v[0] + v[1]), 0), v1 = A(uRod + 1.05 * (v[0] + v[1]), 0);
+  const vl = at3(P, v1, ax === "x" ? (v[0] > 0 ? 12 : -12) : 16, ax === "x" ? -16 : (v[1] > 0 ? -8 : 10));
+  s += arrow3(P, v0, v1, COL.v, 5, 16) + sym(vl[0], vl[1], "v", 24, COL.v);
+  // 「電流？」：在 R 外側
+  if (ax === "x") s += askTag(f1(Rm[0] + Rs * 74), f1(Rm[1]), Rs > 0 ? "left" : "right");
+  else s += askTag(f1(Rm[0]), f1(Rm[1] - Rs * 40), Rs > 0 ? "down" : "up");
+  return svgWrap3(s + legendText(bLegend(p.B) + "；導軌在水平桌面上"));
+}
+
+/* B3（type 8）單棒：水平棒在鉛直磁場中，或鉛直棒在水平磁場中 */
+function draw8(p) {
+  const v = V3[p.v], Lr = 1.15, bx = [-2.0, 2.0], by = [-1.5, 1.5], bz = [-1.0, 1.0];
+  const P = fit3([[bx[0], by[0], bz[0]], [bx[1], by[1], bz[1]], [bx[0], by[1], bz[1]], [bx[1], by[0], bz[0]]], 80, [64, 16, 394, 292]);
+  const box = box3(P, bx[0], bx[1], by[0], by[1], bz[0], bz[1]);
+  const ends = { y: [[0, -Lr, 0], [0, Lr, 0]], x: [[-Lr, 0, 0], [Lr, 0, 0]], z: [[0, 0, Lr * 0.85], [0, 0, -Lr * 0.85]] }[p.rod];   // [a 端, b 端]
+  const rod = '<g class="rod3">' + wire3(P, ends[0], ends[1], "#546e7a", 10) + '</g>';
+  const vd = (k) => [v[0] * k, v[1] * k, 0];
+  const vk = p.rod === "x" ? 1.4 : 1.0;
+  const v0 = vd(0.2), v1 = vd(vk);
+  let s = box.back;
+  if (p.rod !== "z") {
+    const avoid = (x, y) => nearSeg(x, y, ends[0], ends[1], 0.25) || nearSeg(x, y, v0, v1, 0.22);
+    const f = vField(P, gridPts(bx[0], bx[1], by[0], by[1], 4, 3, avoid), bz[0], bz[1], p.B === "+z");
+    s += f.lo + rod + f.hi;
+  } else {
+    const B = V3[p.B]; let back = "", front = "";
+    for (const x of [-1.5, -0.75, 0.75, 1.5]) for (const z of [-0.62, 0.62]) {
+      const A1 = P(x, by[0] + 0.1, z), A2 = P(x, by[1] - 0.1, z);
+      const g = B[1] > 0 ? fArrow(A1, A2, true) : fArrow(A2, A1, true);
+      if (x < 0) back += g; else front += g;     // x>0 的磁場線在棒的前方（螢幕上交叉處較靠近看圖的人）
+    }
+    s += '<g class="b3">' + back + '</g>' + rod + '<g class="b3">' + front + '</g>';
+  }
+  s += box.front;
+  const la = at3(P, ends[0], p.rod === "x" ? -20 : (p.rod === "y" ? -14 : 0), p.rod === "x" ? 0 : (p.rod === "y" ? 16 : -22));
+  const lb = at3(P, ends[1], p.rod === "x" ? 20 : (p.rod === "y" ? 14 : 0), p.rod === "x" ? 0 : (p.rod === "y" ? -16 : 22));
+  s += sym(la[0], la[1], "a", 28, "#111") + sym(lb[0], lb[1], "b", 28, "#111");
+  const vl = at3(P, v1, v[0] ? v[0] * 14 : 14, v[0] ? -14 : (v[1] > 0 ? -10 : 12));
+  s += arrow3(P, v0, v1, COL.v, 5, 17) + sym(vl[0], vl[1], "v", 26, COL.v);
+  s += triad(24, 286);
+  return svgWrap3(s + legendText(bLegend(p.B)));
+}
+
+/* B4（type 9）鉛直磁棒與水平線圈 */
+function draw9(p) {
+  const above = p.mpos === "above", zr = above ? -1.0 : 1.0, R = 1.25, rm = 0.3;
+  const mz = above ? [0.25, 1.75] : [-1.75, -0.25];
+  const other = p.face === "N" ? "S" : "N";
+  const poleLow = above ? p.face : other, poleHigh = above ? other : p.face;
+  const P = fit3([[-R, -R, zr], [R, R, zr], [0, 0, mz[0]], [0, 0, mz[1]], [2.2, 0, 0], [-R - 0.9, 0, zr]], 80, [40, 18, 380, 294]);
+  const ring = ringH(P, 0, 0, zr, R, COL.coil, 6.5, 3.5);
+  let s = seg3(P, [0, 0, -2.0], [0, 0, 2.0], "#b0bec5", 1.6, 'stroke-dasharray="6 6"');
+  s += ring.back + cylV(P, 0, 0, mz[0], mz[1], rm, poleLow, poleHigh) + ring.front;
+  const vz = V3[p.v][2];
+  if (p.mover === "magnet") { const zc = (mz[0] + mz[1]) / 2; s += arrow3(P, [0.85, 0, zc - vz * 0.5], [0.85, 0, zc + vz * 0.5], COL.v, 5, 17); const l = at3(P, [0.85, 0, zc + vz * 0.5], 18, vz > 0 ? 4 : -4); s += sym(l[0], l[1], "v", 26, COL.v); }
+  else { s += arrow3(P, [1.75, 0, zr - vz * 0.5], [1.75, 0, zr + vz * 0.5], COL.v, 5, 17); const l = at3(P, [1.75, 0, zr + vz * 0.5], 18, vz > 0 ? 4 : -4); s += sym(l[0], l[1], "v", 26, COL.v); }
+  const lt = at3(P, [-R, 0, zr], -34, 0); s += txt(lt[0], lt[1], "線圈", 18, COL.coil);
+  s += eyeDown(30, 14);
+  return svgWrap3(s + legendText("線圈水平放置，磁棒在線圈的鉛直軸線上"));
+}
+
+/* B5（type 10）鉛直長直導線穿過水平面 */
+function draw10(p) {
+  const up = p.I === "+z", px = [-1.75, 1.75], py = [-1.75, 1.75], z0 = -1.15, z1 = 1.55, cmp = p.ask !== "ring";
+  const ext = [[px[0] - (cmp ? 0.45 : 0), py[0] - (cmp ? 0.45 : 0), z0], [px[1] + (cmp ? 0.45 : 0), py[1] + (cmp ? 0.45 : 0), z1], [px[0], py[1], z1], [px[1], py[0], z0]];
+  const P = fit3(ext, 80, [24, 14, 392, 294]);
+  let s = wire3(P, [0, 0, z0], [0, 0, 0], COL.wire, 5);
+  s += plate3(P, px[0], px[1], py[0], py[1], 0, "#f1f3f8", 0.88);
+  const o = at3(P, [0, 0, 0]);
+  s += '<circle cx="' + o[0] + '" cy="' + o[1] + '" r="4" fill="' + COL.wire + '"/>';
+  if (!cmp) {
+    for (const R of [0.75, 1.35]) { const g = ringH(P, 0, 0, 0, R, COL.field, 2.4, 2.4); s += g.back.replace('stroke-opacity="0.5"', 'stroke-dasharray="7 5"') + g.front.replace('stroke-linecap', 'stroke-dasharray="7 5" stroke-linecap'); }
+    const l = at3(P, [1.35, -0.2, 0], 36, 8); s += txt(l[0], l[1], "磁力線", 16, COL.field);
+  } else {
+    s += seg3(P, [px[0] + 0.1, 0, 0], [px[1] - 0.1, 0, 0], "#cfd8dc", 1.5, 'stroke-dasharray="4 4"') + seg3(P, [0, py[0] + 0.1, 0], [0, py[1] - 0.1, 0], "#cfd8dc", 1.5, 'stroke-dasharray="4 4"');
+    // 方位標示在水平面四邊的外側（不會和 P 點重疊）
+    const lab = (q, t) => { const r = at3(P, q); return txt(r[0], r[1], t, 19, "#37474f"); };
+    s += '<g class="dirs">' + lab([px[1] + 0.3, 0, 0], "東") + lab([px[0] - 0.3, 0, 0], "西") + lab([0, py[1] + 0.38, 0], "北") + lab([0, py[0] - 0.38, 0], "南") + '</g>';
+    const d = V3[{ east:"+x", west:"-x", north:"+y", south:"-y" }[p.P]], q = [d[0] * 1.05, d[1] * 1.05, 0];
+    const c = []; for (let i = 0; i < 40; i++) { const t = 2 * Math.PI * i / 40; c.push([q[0] + 0.42 * Math.cos(t), q[1] + 0.42 * Math.sin(t), 0]); }
+    s += '<g class="compass3">' + poly3(P, c, 'fill="#fffde7" stroke="#555" stroke-width="2.5"');
+    const qc = at3(P, q); s += txt(qc[0], qc[1], "?", 20, "#555") + '</g>';
+    const pl = at3(P, [q[0] + (d[1] ? 0.6 : 0), q[1] + (d[0] ? -0.6 : 0), 0], d[0] ? 4 : 6, d[0] ? 4 : 0); s += sym(pl[0], pl[1], "P", 24, "#111");
+  }
+  s += wire3(P, [0, 0, 0], [0, 0, z1], COL.wire, 5);
+  const ah = at3(P, [0, 0, z1 * 0.62]);
+  s += arrowHead(ah[0], ah[1], up ? "up" : "down", COL.I, 24) + sym(ah[0] - 22, ah[1], "I", 26, COL.I);
+  if (!cmp) s += eyeDown(30, 14);
+  return svgWrap3(s + legendText("導線鉛直穿過水平面" + (cmp ? "；忽略地磁" : "")));
+}
+
+/* B6（type 11）立體螺線管＋電池（甲端在西、乙端在東） */
+function draw11(p) {
+  const x0 = -1.65, x1 = 1.65, zc = 0.45, r = 0.72, zb = -1.25, comp = p.ask === "compass";
+  const pts = helix3pts(x0, x1, zc, r, 4, p.wind, 360);
+  const ext = [[-2.4, -0.9, zb], [2.4, 0.9, zb], [x0, 0, zc + r + 0.3], [comp ? 3.65 : 2.3, comp ? 0.45 : 0, zc]];
+  const P = fit3(ext, 80, [16, 24, 392, 292]);
+  let s = plate3(P, -2.4, 2.4, -0.9, 0.9, zb, "#eceff1", 0.9);
+  s += seg3(P, [x0 - 0.5, 0, zc], [x1 + (comp ? 1.6 : 0.5), 0, zc], "#b0bec5", 1.6, 'stroke-dasharray="6 6"');
+  s += helix3svg(P, pts);
+  const S = pts[0], E = pts[pts.length - 1];
+  s += seg3(P, S, [S[0], 0, zb], COL.wire, 4) + seg3(P, E, [E[0], 0, zb], COL.wire, 4);
+  const pl = p.plus === "left" ? -1 : 1, xPlus = pl * 0.13, xMinus = -pl * 0.13;
+  s += seg3(P, [S[0], 0, zb], [Math.min(xPlus, xMinus), 0, zb], COL.wire, 4) + seg3(P, [Math.max(xPlus, xMinus), 0, zb], [E[0], 0, zb], COL.wire, 4);
+  s += seg3(P, [xPlus, 0, zb - 0.38], [xPlus, 0, zb + 0.38], "#111", 3) + seg3(P, [xMinus, 0, zb - 0.2], [xMinus, 0, zb + 0.2], "#111", 8, 'stroke-linecap="butt"');
+  const tp = at3(P, [xPlus + pl * 0.25, 0, zb + 0.42]), tm = at3(P, [xMinus - pl * 0.25, 0, zb + 0.42]);
+  s += txt(tp[0], tp[1], "+", 24, "#c62828") + txt(tm[0], tm[1], "−", 24, "#1565c0");
+  const upX = p.plus === "left" ? S[0] : E[0], dnX = p.plus === "left" ? E[0] : S[0];
+  const ua = at3(P, [upX, 0, zb + 0.55]), da = at3(P, [dnX, 0, zb + 0.55]);
+  s += arrowHead(ua[0], ua[1], "up", COL.I, 20) + sym(ua[0] + (p.plus === "left" ? -20 : 20), ua[1], "I", 24, COL.I) + arrowHead(da[0], da[1], "down", COL.I, 20);
+  const lj = at3(P, [x0 - 0.45, 0, zc + 0.05], -6, 0), ly = at3(P, [x1 + 0.45, 0, zc + 0.05], comp ? 2 : 6, comp ? -26 : 0);
+  s += txt(lj[0], lj[1], "甲", 22, "#333") + txt(ly[0], ly[1], "乙", 22, "#333");
+  if (comp) {
+    const q = [x1 + 1.15, 0, zc], c = []; for (let i = 0; i < 40; i++) { const t = 2 * Math.PI * i / 40; c.push([q[0] + 0.42 * Math.cos(t), 0.42 * Math.sin(t), zc]); }
+    const qc = at3(P, q), ql = at3(P, q, 0, 30);
+    s += '<g class="compass3">' + poly3(P, c, 'fill="#fffde7" stroke="#555" stroke-width="2.5"') + txt(qc[0], qc[1], "?", 20, "#555") + '</g>' + txt(ql[0], ql[1], "小磁針", 15, "#555");
+  }
+  return svgWrap3(s + legendText("實線：線圈前側導線　虛線：後側導線"));
 }
 </script>
 </body>
