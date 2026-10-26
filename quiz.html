@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>加法小測驗（測試版）</title>
+<style>
+  :root { --main:#1565c0; --ok:#2e7d32; --bad:#c62828; --bg:#f3f6fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+         background:var(--bg); color:#222; font-size:22px; line-height:1.5; }
+  header { background:var(--main); color:#fff; padding:16px 20px; text-align:center; }
+  header h1 { margin:0; font-size:1.4em; }
+  main { max-width:640px; margin:0 auto; padding:20px 16px 60px; }
+  .card { background:#fff; border-radius:16px; padding:24px 20px; box-shadow:0 2px 10px rgba(0,0,0,.08); margin-bottom:20px; }
+  .hidden { display:none !important; }
+  label { display:block; font-weight:bold; margin:12px 0 6px; }
+  input { width:100%; font-size:1.2em; padding:12px 14px; border:2px solid #b0bec5; border-radius:10px; }
+  input:focus { outline:none; border-color:var(--main); }
+  button { width:100%; font-size:1.2em; padding:14px; margin-top:20px; border:none; border-radius:12px;
+           background:var(--main); color:#fff; font-weight:bold; cursor:pointer; }
+  button:disabled { background:#90a4ae; cursor:wait; }
+  button.secondary { background:#fff; color:var(--main); border:2px solid var(--main); }
+  .msg { margin-top:14px; font-weight:bold; min-height:1.5em; }
+  .msg.error { color:var(--bad); }
+  .welcome { font-size:1.2em; }
+  .q { display:flex; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid #eceff1; }
+  .q:last-child { border-bottom:none; }
+  .q .no { color:#78909c; min-width:1.6em; }
+  .q .expr { font-size:1.3em; font-weight:bold; white-space:nowrap; }
+  .q input { flex:1; min-width:3.5em; width:auto; text-align:center; padding:10px 6px; -moz-appearance:textfield; }
+  .q input::-webkit-outer-spin-button, .q input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  .q .mark { font-size:1.4em; min-width:1.4em; text-align:center; }
+  .mark.right { color:var(--ok); } .mark.wrong { color:var(--bad); }
+  .score { font-size:3em; font-weight:bold; color:var(--main); text-align:center; margin:10px 0; }
+  .center { text-align:center; }
+  @media (min-width:900px) { body { font-size:26px; } main { max-width:760px; } }
+</style>
+</head>
+<body>
+<header><h1>加法小測驗（測試版）</h1></header>
+<main>
+  <!-- 登入 -->
+  <section id="loginView" class="card">
+    <h2 style="margin-top:0">學生登入</h2>
+    <form id="loginForm" autocomplete="off">
+      <label for="sid">學號</label>
+      <input id="sid" inputmode="numeric" required>
+      <label for="pwd">密碼</label>
+      <input id="pwd" type="password" required>
+      <button id="loginBtn" type="submit">登入</button>
+      <div id="loginMsg" class="msg"></div>
+    </form>
+  </section>
+
+  <!-- 作答 -->
+  <section id="quizView" class="hidden">
+    <div class="card welcome"><span id="welcomeName"></span> 同學你好！請完成下列 5 題加法。</div>
+    <form id="quizForm" class="card" autocomplete="off">
+      <div id="questions"></div>
+      <button id="submitBtn" type="submit">交卷</button>
+      <div id="quizMsg" class="msg"></div>
+    </form>
+  </section>
+
+  <!-- 成績 -->
+  <section id="resultView" class="card hidden center">
+    <div><span id="resultName"></span> 同學，你的得分是</div>
+    <div class="score" id="scoreText"></div>
+    <div id="resultNote">成績已送出，老師會收到紀錄。</div>
+    <button id="logoutBtn" class="secondary" type="button">登出</button>
+  </section>
+</main>
+
+<script>
+// ★ 請把下面換成 Apps Script「網頁應用程式」的網址（以 /exec 結尾）
+const API_URL = "https://script.google.com/macros/s/AKfycbwlSE_B3iNsq1pUSm5TaQdPa7hDMxyFsDF_HVVBFA-Vx_e9UlzEUGjdsSrkpaRUhkhM/exec";
+
+// 題目（需與 Code.gs 中的 QUESTIONS 相同；分數以伺服器計算為準）
+const QUESTIONS = [
+  { a: 12, b: 7 },
+  { a: 25, b: 18 },
+  { a: 9,  b: 46 },
+  { a: 33, b: 27 },
+  { a: 58, b: 64 }
+];
+
+let session = null; // { id, password, name }
+const $ = (id) => document.getElementById(id);
+
+function show(view) {
+  ["loginView", "quizView", "resultView"].forEach(v => $(v).classList.toggle("hidden", v !== view));
+  window.scrollTo(0, 0);
+}
+
+function setMsg(el, text, isError) {
+  el.textContent = text || "";
+  el.classList.toggle("error", !!isError);
+}
+
+async function callApi(payload) {
+  if (!API_URL || API_URL.indexOf("PASTE_") === 0) {
+    throw new Error("尚未設定 API_URL，請老師填入 Apps Script 網址");
+  }
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" }, // 避免 CORS 預檢
+    body: JSON.stringify(payload),
+    redirect: "follow"
+  });
+  if (!res.ok) throw new Error("連線失敗（" + res.status + "）");
+  return res.json();
+}
+
+function renderQuestions() {
+  const box = $("questions");
+  box.innerHTML = "";
+  QUESTIONS.forEach((q, i) => {
+    const row = document.createElement("div");
+    row.className = "q";
+    row.innerHTML =
+      '<span class="no">' + (i + 1) + '.</span>' +
+      '<span class="expr">' + q.a + ' + ' + q.b + ' =</span>' +
+      '<input type="number" inputmode="numeric" id="ans' + i + '" aria-label="第' + (i + 1) + '題答案">' +
+      '<span class="mark" id="mark' + i + '"></span>';
+    box.appendChild(row);
+  });
+}
+
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = $("sid").value.trim();
+  const password = $("pwd").value.trim();
+  const btn = $("loginBtn");
+  if (!id || !password) { setMsg($("loginMsg"), "請輸入學號和密碼", true); return; }
+  btn.disabled = true; btn.textContent = "登入中…";
+  setMsg($("loginMsg"), "");
+  try {
+    const data = await callApi({ action: "login", id, password });
+    if (!data.ok) throw new Error(data.error || "登入失敗");
+    session = { id, password, name: data.name };
+    $("welcomeName").textContent = data.name;
+    renderQuestions();
+    setMsg($("quizMsg"), "");
+    show("quizView");
+  } catch (err) {
+    setMsg($("loginMsg"), err.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = "登入";
+  }
+});
+
+$("quizForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!session) { show("loginView"); return; }
+  const answers = QUESTIONS.map((_, i) => $("ans" + i).value.trim());
+  const blank = answers.filter(a => a === "").length;
+  if (blank > 0 && !confirm("還有 " + blank + " 題沒有作答，確定要交卷嗎？")) return;
+  const btn = $("submitBtn");
+  btn.disabled = true; btn.textContent = "送出中…";
+  setMsg($("quizMsg"), "");
+  try {
+    const data = await callApi({ action: "submit", id: session.id, password: session.password, answers });
+    if (!data.ok) throw new Error(data.error || "送出失敗");
+    $("resultName").textContent = session.name;
+    $("scoreText").textContent = data.score + " 分";
+    (data.results || []).forEach((r, i) => {
+      const m = $("mark" + i);
+      if (m) { m.textContent = r ? "○" : "✕"; m.className = "mark " + (r ? "right" : "wrong"); }
+    });
+    const right = (data.results || []).filter(Boolean).length;
+    $("resultNote").textContent = "答對 " + right + " / " + QUESTIONS.length + " 題。成績已送出，老師會收到紀錄。";
+    show("resultView");
+  } catch (err) {
+    setMsg($("quizMsg"), err.message + "（作答仍保留，可再按一次交卷）", true);
+  } finally {
+    btn.disabled = false; btn.textContent = "交卷";
+  }
+});
+
+$("logoutBtn").addEventListener("click", () => {
+  session = null;
+  $("sid").value = ""; $("pwd").value = "";
+  setMsg($("loginMsg"), "");
+  show("loginView");
+});
+</script>
+</body>
+</html>
