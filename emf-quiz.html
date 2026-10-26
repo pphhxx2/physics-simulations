@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>電磁感應・方向快打</title>
+<style>
+  :root { --main:#283593; --main2:#3949ab; --ok:#2e7d32; --bad:#c62828; --bg:#eef1f8; --warn:#ef6c00; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; }
+  body { font-family:"Noto Sans TC","Noto Sans CJK TC","Microsoft JhengHei","PingFang TC",sans-serif;
+         background:var(--bg); color:#1d2433; font-size:18px; line-height:1.5; }
+  header { background:var(--main); color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+  header h1 { margin:0; font-size:1.25em; letter-spacing:.05em; flex:1; }
+  header .who { font-size:.85em; opacity:.95; text-align:right; }
+  main { max-width:760px; margin:0 auto; padding:14px 12px 40px; }
+  .card { background:#fff; border-radius:16px; padding:20px 18px; box-shadow:0 2px 10px rgba(20,30,80,.08); margin-bottom:14px; }
+  .hidden { display:none !important; }
+  h2 { margin:0 0 10px; font-size:1.3em; }
+  label { display:block; font-weight:bold; margin:14px 0 6px; }
+  input { width:100%; font-size:1.3em; padding:12px 14px; border:2px solid #b0bec5; border-radius:10px; letter-spacing:.15em; }
+  input:focus { outline:none; border-color:var(--main2); }
+  button { font-family:inherit; }
+  .btn { width:100%; font-size:1.15em; padding:14px; margin-top:16px; border:none; border-radius:12px;
+         background:var(--main2); color:#fff; font-weight:bold; cursor:pointer; }
+  .btn:disabled { background:#90a4ae; cursor:wait; }
+  .btn.secondary { background:#fff; color:var(--main2); border:2px solid var(--main2); }
+  .btn.green { background:var(--ok); }
+  .msg { margin-top:12px; font-weight:bold; min-height:1.5em; }
+  .msg.error { color:var(--bad); }
+  .hint { color:#5f6b7a; font-size:.88em; }
+  /* 階段選擇 */
+  .rule { background:#fff8e1; border:2px solid #ffca28; border-radius:12px; padding:10px 14px; font-weight:bold; text-align:center; margin-bottom:14px; }
+  .stage { display:flex; align-items:center; gap:14px; border:2px solid #c5cae9; border-radius:14px; padding:14px; margin-top:12px; background:#fff; }
+  .stage.locked { background:#f1f2f5; border-color:#dde1e7; color:#8a94a3; }
+  .stage.passed { border-color:#66bb6a; }
+  .stage .num { width:52px; height:52px; border-radius:50%; background:var(--main2); color:#fff; font-size:1.5em; font-weight:bold;
+                display:flex; align-items:center; justify-content:center; flex:none; }
+  .stage.locked .num { background:#b0b7c3; }
+  .stage.passed .num { background:var(--ok); }
+  .stage .info { flex:1; min-width:0; }
+  .stage .title { font-weight:bold; font-size:1.1em; }
+  .stage .sub { font-size:.85em; color:#5f6b7a; }
+  .stage .best { font-size:.95em; }
+  .stage button { width:auto; margin:0; padding:10px 16px; font-size:1em; flex:none; }
+  .badge { display:inline-block; font-size:.75em; padding:1px 8px; border-radius:20px; margin-left:6px; vertical-align:middle; }
+  .badge.ok { background:#e8f5e9; color:var(--ok); border:1px solid #a5d6a7; }
+  .badge.lock { background:#eceff1; color:#78909c; border:1px solid #cfd8dc; }
+  .overall { text-align:center; font-size:1em; margin-top:12px; color:#3c4656; }
+  /* 作答 */
+  .qhead { display:flex; justify-content:space-between; align-items:center; font-weight:bold; margin-bottom:6px; gap:8px; flex-wrap:wrap; }
+  .qhead .stg { color:var(--main2); }
+  .timerwrap { background:#fff; border-radius:12px; padding:8px 10px; box-shadow:0 1px 6px rgba(20,30,80,.08); margin-bottom:8px; }
+  .timerrow { display:flex; justify-content:space-between; align-items:center; font-size:.95em; margin-bottom:5px; gap:8px; }
+  .timeleft { font-weight:bold; font-variant-numeric:tabular-nums; font-size:1.15em; }
+  .bonus { font-weight:bold; color:#6a1b9a; background:#f3e5f5; border-radius:20px; padding:1px 10px; white-space:nowrap; }
+  .bonus.zero { color:#78909c; background:#eceff1; }
+  .bar { height:14px; background:#e3e7ef; border-radius:8px; overflow:hidden; position:relative; }
+  .bar .fill { position:absolute; left:0; top:0; bottom:0; width:100%; background:var(--ok); border-radius:8px; }
+  .bar .basemark { position:absolute; top:0; bottom:0; width:3px; background:#6a1b9a; opacity:.75; }
+  .prompt { font-size:1.12em; font-weight:bold; margin:6px 2px 8px; min-height:2.9em; }
+  .diagram { background:#fff; border-radius:14px; box-shadow:0 1px 8px rgba(20,30,80,.10); position:relative; overflow:hidden; }
+  .diagram svg { display:block; width:100%; height:auto; max-height:52vh; margin:0 auto; }
+  .fb { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+        background:rgba(255,255,255,.72); font-weight:bold; text-align:center; pointer-events:none; }
+  .fb .mark { font-size:96px; line-height:1; }
+  .fb.ok .mark { color:var(--ok); } .fb.bad .mark { color:var(--bad); }
+  .fb .txt { font-size:1.2em; margin-top:6px; }
+  .fb .ans { white-space:nowrap; flex:none; display:flex; align-items:center; gap:8px; justify-content:center; font-size:1.25em; color:var(--ok); margin-top:6px;
+             background:#fff; border:3px solid var(--ok); border-radius:12px; padding:4px 14px; }
+  .opts { display:grid; gap:10px; margin-top:10px; }
+  .opts.two { grid-template-columns:1fr 1fr; }
+  .opts.four { grid-template-columns:1fr 1fr 1fr; grid-template-areas:". up ." "left . right" ". down ."; }
+  .opt { display:flex; align-items:center; justify-content:center; gap:10px; min-height:70px; font-size:1.2em; font-weight:bold;
+         border:3px solid var(--main2); background:#fff; color:var(--main); border-radius:14px; cursor:pointer; padding:6px 8px;
+         touch-action:manipulation; user-select:none; }
+  .opts.four .opt { min-height:62px; font-size:1.05em; flex-direction:column; gap:2px; }
+  .opt svg { flex:none; }
+  .opt:active { transform:scale(.97); }
+  .opt:disabled { cursor:default; }
+  .opt.chosen { background:#e8eaf6; }
+  .opt.right { background:#e8f5e9; border-color:var(--ok); color:var(--ok); }
+  .opt.wrong { background:#ffebee; border-color:var(--bad); color:var(--bad); }
+  .keyhint { text-align:center; color:#7a8595; font-size:.8em; margin-top:8px; }
+  /* 結果 */
+  .score { font-size:3.2em; font-weight:bold; color:var(--main); text-align:center; line-height:1.2; }
+  .score small { font-size:.4em; color:#5f6b7a; }
+  .result-status { text-align:center; font-size:1.25em; font-weight:bold; margin:8px 0; }
+  .result-status.ok { color:var(--ok); } .result-status.bad { color:var(--bad); }
+  .dots { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:12px 0; }
+  .dot { width:46px; text-align:center; border-radius:8px; padding:2px 0; font-size:.8em; font-weight:bold; }
+  .dot.ok { background:#e8f5e9; color:var(--ok); } .dot.bad { background:#ffebee; color:var(--bad); }
+  .center { text-align:center; }
+  /* 測試模式 */
+  .orline { text-align:center; color:#7a8595; margin:2px 0 12px; font-weight:bold; }
+  .testcard { border:2px dashed #ef6c00; text-align:center; background:#fffaf3; }
+  .testcard .testtitle { font-weight:bold; color:#bf360c; }
+  .testcard .btn { margin-top:10px; }
+  .btn.test { background:#ef6c00; }
+  .tbadge { display:inline-block; background:#ef6c00; color:#fff; font-weight:bold; font-size:.85em; padding:1px 10px; border-radius:20px; vertical-align:middle; }
+  .testnote { background:#fff3e0; border:2px solid #ffb74d; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-weight:bold; color:#bf360c; text-align:center; }
+  .testresult { background:#fff3e0; border:2px solid #ef6c00; color:#bf360c; font-weight:bold; font-size:1.15em; border-radius:12px; padding:8px 12px; margin-bottom:10px; }
+  .qgrid { display:grid; grid-template-columns:1fr; grid-template-areas:"prompt" "diagram" "side"; }
+  .qgrid .prompt { grid-area:prompt; } .qgrid .diagram { grid-area:diagram; } .qgrid .qside { grid-area:side; }
+  @media (min-width:900px) {
+    body { font-size:19px; }
+    .opt { min-height:76px; }
+  }
+  /* 電腦橫向螢幕：左邊大圖、右邊題目與按鈕 */
+  @media (min-width:900px) and (min-aspect-ratio:4/3) {
+    main.quizmode { max-width:1240px; }
+    .diagram svg { width:auto; max-width:100%; }
+    .qgrid { grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr); grid-template-rows:auto 1fr; column-gap:18px;
+             grid-template-areas:"diagram prompt" "diagram side"; align-items:start; }
+    .qgrid .prompt { font-size:1.25em; margin-top:0; }
+    .diagram svg { max-height:calc(100vh - 190px); }
+    .opts.two { grid-template-columns:1fr; }
+    .opt { min-height:86px; font-size:1.3em; }
+    .opts.four .opt { min-height:72px; }
+  }
+  @media (max-width:420px) {
+    body { font-size:16px; }
+    .fb .mark { font-size:76px; }
+    .opt { min-height:62px; font-size:1.1em; }
+  }
+</style>
+</head>
+<body>
+<header><h1>電磁感應・方向快打</h1><div class="who" id="who"></div></header>
+<main>
+  <!-- 登入 -->
+  <section id="loginView">
+   <div class="card">
+    <h2>學生登入</h2>
+    <form id="loginForm" autocomplete="off">
+      <label for="sid">學號（6碼）</label>
+      <input id="sid" inputmode="numeric" maxlength="6" placeholder="例：110101" required>
+      <label for="bd">出生月日（4碼，例：0408）</label>
+      <input id="bd" inputmode="numeric" maxlength="4" placeholder="MMDD" required>
+      <label for="pid">身分證後4碼</label>
+      <input id="pid" inputmode="numeric" maxlength="4" type="password" required>
+      <button id="loginBtn" class="btn" type="submit">登入</button>
+      <div id="loginMsg" class="msg"></div>
+    </form>
+   </div>
+   <div class="orline">或</div>
+   <div class="card testcard">
+    <div class="testtitle">只想先練習？</div>
+    <button id="testBtn" class="btn test" type="button">測試模式（不登入）</button>
+    <div class="hint">不用登入，三個階段都能任選；成績不會記錄。</div>
+    <div id="testMsg" class="msg error"></div>
+   </div>
+  </section>
+
+  <!-- 階段選擇 -->
+  <section id="stageView" class="card hidden">
+    <h2>選擇闖關階段</h2>
+    <div class="testnote hidden" id="testNote"><span class="tbadge">測試模式</span> 可任選階段，成績不會記錄</div>
+    <div class="rule" id="ruleText">全部答對才能進入下一階段</div>
+    <div class="hint">答對時，本題剩下的秒數會加到下一題（可累積）；答錯或逾時，累積的加時歸零。</div>
+    <div id="stageList"></div>
+    <div class="overall" id="overallText"></div>
+    <div id="stageMsg" class="msg error"></div>
+    <button id="logoutBtn" class="btn secondary" type="button">登出</button>
+  </section>
+
+  <!-- 作答 -->
+  <section id="quizView" class="hidden">
+    <div class="qhead"><span class="stg"><span class="tbadge hidden" id="qTest">測試模式</span> <span id="qStage"></span></span><span id="qCount"></span><span id="qCorrect"></span></div>
+    <div class="timerwrap">
+      <div class="timerrow"><span>剩餘 <span class="timeleft" id="timeLeft">0.0</span> 秒</span><span class="bonus zero" id="bonus">累積加時 +0.0 秒</span></div>
+      <div class="bar"><div class="fill" id="barFill"></div><div class="basemark hidden" id="baseMark"></div></div>
+    </div>
+    <div class="qgrid">
+      <div class="prompt" id="prompt"></div>
+      <div class="diagram"><div id="svgBox"></div><div class="fb hidden" id="fb"></div></div>
+      <div class="qside">
+        <div class="opts two" id="opts"></div>
+        <div class="keyhint" id="keyHint">電腦可用鍵盤方向鍵作答</div>
+        <div id="quizMsg" class="msg error center"></div>
+        <button id="retryBtn" class="btn hidden" type="button">重新送出</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 結果 -->
+  <section id="resultView" class="card hidden center">
+    <div class="testresult hidden" id="resTest">測試模式，成績不會記錄</div>
+    <div id="resStage" style="font-weight:bold;color:var(--main2)"></div>
+    <div class="score" id="resScore"></div>
+    <div id="resCount"></div>
+    <div class="result-status" id="resStatus"></div>
+    <div class="dots" id="resDots"></div>
+    <div id="resBest" class="hint"></div>
+    <button id="nextStageBtn" class="btn green hidden" type="button"></button>
+    <button id="againBtn" class="btn" type="button">再挑戰一次</button>
+    <button id="backBtn" class="btn secondary" type="button">回到階段選擇</button>
+  </section>
+</main>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxYICb49skTUz6lIG2L6YrzqLOivLgEP1F1tEolkLqZHpNNxveoGrzZ9vnZbSUI9qjH/exec";
+/* 上一行請換成 Apps Script 網頁應用程式網址（以 /exec 結尾） */
+
+const $ = (id) => document.getElementById(id);
+let cred = null;          // { id, birthday, pid }（只存在記憶體，不存瀏覽器）
+let user = null;          // { name, cls, seat }
+let stages = [];
+let quiz = null;          // 目前闖關狀態
+let busy = false;
+let testMode = false;     // 測試模式（不登入、不記錄）
+
+const LABEL = { up:"向上", down:"向下", left:"向左", right:"向右", in:"垂直穿入紙面", out:"垂直穿出紙面", cw:"順時針", ccw:"逆時針" };
+const TYPE_NAME = { 1:"線圈", 2:"軌道", 3:"單棒", 4:"磁鐵", 5:"電流" };
+
+function show(view) {
+  ["loginView","stageView","quizView","resultView"].forEach(v => $(v).classList.toggle("hidden", v !== view));
+  document.querySelector("main").classList.toggle("quizmode", view === "quizView");
+  window.scrollTo(0, 0);
+}
+function setMsg(el, text, isError) { el.textContent = text || ""; el.classList.toggle("error", !!isError); }
+function toHalf(s) { return String(s || "").replace(/[\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/\s+/g, ""); }
+
+async function callApi(payload) {
+  if (!API_URL || API_URL.indexOf("PASTE_") === 0) throw new Error("尚未設定 API_URL，請老師填入 Apps Script 網址");
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },   // 不觸發 CORS 預檢
+    body: JSON.stringify(payload),
+    redirect: "follow"
+  });
+  if (!res.ok) throw new Error("連線失敗（" + res.status + "）");
+  return res.json();
+}
+
+/* ================= 登入 ================= */
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = toHalf($("sid").value), birthday = toHalf($("bd").value), pid = toHalf($("pid").value).toUpperCase();
+  if (!/^\d{6}$/.test(id)) return setMsg($("loginMsg"), "學號請輸入 6 碼數字", true);
+  if (!/^\d{4}$/.test(birthday)) return setMsg($("loginMsg"), "出生月日請輸入 4 碼，例：0408", true);
+  if (!/^[0-9A-Z]{4}$/.test(pid)) return setMsg($("loginMsg"), "身分證後4碼請輸入 4 碼", true);
+  const btn = $("loginBtn"); btn.disabled = true; btn.textContent = "登入中…"; setMsg($("loginMsg"), "");
+  try {
+    const d = await callApi({ action:"login", id, birthday, pid });
+    if (!d.ok) throw new Error(d.error || "登入失敗");
+    cred = { id, birthday, pid }; testMode = false; setTestUi();
+    user = { name:d.name, cls:d.cls, seat:d.seat };
+    $("who").textContent = d.cls + " 班 " + d.seat + " 號 " + d.name;
+    renderStages(d.stages, d.overall, d.perStage, d.passCount);
+    show("stageView");
+  } catch (err) { setMsg($("loginMsg"), err.message, true); }
+  finally { btn.disabled = false; btn.textContent = "登入"; }
+});
+
+/* ================= 測試模式 ================= */
+$("testBtn").addEventListener("click", async () => {
+  const btn = $("testBtn"); btn.disabled = true; btn.textContent = "準備中…"; setMsg($("testMsg"), "");
+  try {
+    const d = await callApi({ action:"testInfo" });
+    if (!d.ok) throw new Error(d.error || "無法進入測試模式");
+    testMode = true; cred = null; user = null;
+    setTestUi();
+    renderStages(d.stages, null, d.perStage, d.passCount);
+    show("stageView");
+  } catch (err) { setMsg($("testMsg"), err.message, true); }
+  finally { btn.disabled = false; btn.textContent = "測試模式（不登入）"; }
+});
+function setTestUi() {
+  $("who").innerHTML = testMode ? '<span class="tbadge">測試模式</span>' : "";
+  $("testNote").classList.toggle("hidden", !testMode);
+  $("qTest").classList.toggle("hidden", !testMode);
+  $("logoutBtn").textContent = testMode ? "離開測試模式" : "登出";
+}
+
+$("logoutBtn").addEventListener("click", () => {
+  cred = null; user = null; quiz = null; testMode = false; setTestUi();
+  ["sid","bd","pid"].forEach(i => $(i).value = "");
+  $("who").textContent = ""; setMsg($("loginMsg"), ""); show("loginView");
+});
+
+/* ================= 階段選擇 ================= */
+function renderStages(list, overall, perStage, passCount) {
+  stages = list || stages;
+  if (perStage && passCount) $("ruleText").textContent = passCount >= perStage ? "全部答對才能進入下一階段" : "答對 " + passCount + " 題以上才能進入下一階段";
+  const box = $("stageList"); box.innerHTML = "";
+  stages.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "stage" + (s.unlocked ? "" : " locked") + (s.passed ? " passed" : "");
+    const badge = s.passed ? '<span class="badge ok">已過關</span>' : (s.unlocked ? "" : '<span class="badge lock">未解鎖</span>');
+    const best = s.best === null || s.best === undefined ? "尚未作答" : s.best + " / " + s.max + " 分";
+    div.innerHTML = '<div class="num">' + s.stage + '</div><div class="info"><div class="title">' + s.name + badge + '</div>' +
+      '<div class="sub">每題 ' + s.secs + ' 秒・答對一題 ' + s.pts + ' 分・滿分 ' + s.max + '</div>' +
+      (testMode ? '' : '<div class="best">最佳成績：' + best + '</div>') + '</div>';
+    const b = document.createElement("button");
+    b.className = "btn"; b.type = "button";
+    if (s.unlocked) { b.textContent = s.best === null || s.best === undefined ? "開始" : "挑戰"; b.onclick = () => startStage(s.stage); }
+    else { b.textContent = "鎖定"; b.disabled = true; b.style.background = "#b0b7c3"; b.style.cursor = "not-allowed"; }
+    div.appendChild(b); box.appendChild(div);
+  });
+  if (overall !== undefined) $("overallText").textContent = overall === null ? "" : "目前最高分：" + overall + " 分";
+}
+
+async function startStage(stage) {
+  if (busy) return; busy = true;
+  setMsg($("stageMsg"), "準備題目中…", false);
+  try {
+    const d = await callApi(testMode ? { action:"start", test:true, stage }
+                                     : { action:"start", id:cred.id, birthday:cred.birthday, pid:cred.pid, stage });
+    if (!d.ok) throw new Error(d.error || "無法開始");
+    setMsg($("stageMsg"), "");
+    quiz = { token:d.token, stage:d.stage, stageName:d.stageName, total:d.total, base:d.base, correct:0, lastStage:stage };
+    show("quizView");
+    showQuestion(d.q, d.allowance, d.carry);
+  } catch (err) { setMsg($("stageMsg"), err.message, true); }
+  finally { busy = false; }
+}
+
+/* ================= 作答與計時 ================= */
+let timer = null;   // { start, allowance, raf }
+let accepting = false;
+let pending = null; // 送出中的作答（供重送）
+
+function showQuestion(q, allowance, carry) {
+  quiz.q = q; quiz.allowance = allowance; quiz.carry = carry;
+  $("qStage").textContent = quiz.stageName;
+  $("qCount").textContent = "第 " + (q.index + 1) + " / " + quiz.total + " 題";
+  $("qCorrect").textContent = "答對 " + quiz.correct;
+  $("prompt").textContent = q.prompt;
+  $("svgBox").innerHTML = drawQuestion(q.draw);
+  $("fb").className = "fb hidden"; $("fb").innerHTML = "";
+  setMsg($("quizMsg"), ""); $("retryBtn").classList.add("hidden");
+  const b = $("bonus");
+  b.textContent = "累積加時 +" + carry.toFixed(1) + " 秒"; b.classList.toggle("zero", carry <= 0);
+  const bm = $("baseMark");
+  if (carry > 0) { bm.classList.remove("hidden"); bm.style.left = (quiz.base / allowance * 100) + "%"; } else bm.classList.add("hidden");
+  renderOptions(q.options);
+  accepting = true;
+  timer = { start: performance.now(), allowance };
+  tick();
+}
+
+function renderOptions(options) {
+  const box = $("opts"); box.innerHTML = "";
+  const four = options.length === 4;
+  box.className = "opts " + (four ? "four" : "two");
+  options.forEach((o, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "opt"; b.dataset.k = o.k;
+    if (four) b.style.gridArea = o.k;
+    b.innerHTML = icon(o.k, four ? 30 : 36) + "<span>" + o.t + "</span>";
+    b.addEventListener("click", () => choose(o.k));
+    box.appendChild(b);
+  });
+  const ks = options.map(o => o.k);
+  const dirs = ks.every(k => ["up","down","left","right"].includes(k));
+  $("keyHint").textContent = dirs ? "電腦可用鍵盤方向鍵 ↑ ↓ ← → 作答" : "電腦可用鍵盤 ← 選左邊、→ 選右邊";
+}
+
+function tick() {
+  if (!timer || !accepting) return;
+  const el = (performance.now() - timer.start) / 1000;
+  const left = Math.max(0, timer.allowance - el);
+  $("timeLeft").textContent = left.toFixed(1);
+  const f = $("barFill");
+  const ratio = left / timer.allowance;
+  f.style.width = (ratio * 100) + "%";
+  f.style.background = left <= 2 ? "var(--bad)" : (left <= timer.allowance * 0.4 ? "var(--warn)" : "var(--ok)");
+  if (left <= 0) { choose(null); return; }
+  timer.raf = requestAnimationFrame(tick);
+}
+
+function choose(k) {
+  if (!accepting || !quiz) return;
+  accepting = false;
+  if (timer && timer.raf) cancelAnimationFrame(timer.raf);
+  const used = Math.min(timer.allowance, (performance.now() - timer.start) / 1000);   // 送出期間計時暫停
+  document.querySelectorAll(".opt").forEach(b => { b.disabled = true; if (b.dataset.k === k) b.classList.add("chosen"); });
+  pending = { action:"answer", token:quiz.token, index:quiz.q.index, choice:k, used:Math.round(used * 10) / 10 };
+  sendAnswer();
+}
+
+async function sendAnswer() {
+  $("retryBtn").classList.add("hidden"); setMsg($("quizMsg"), "");
+  const slow = setTimeout(() => setMsg($("quizMsg"), "判定中…", false), 500);
+  let d;
+  try {
+    d = await callApi(pending);
+    clearTimeout(slow);
+    if (!d.ok) throw Object.assign(new Error(d.error || "送出失敗"), { fatal: true });
+  } catch (err) {
+    clearTimeout(slow);
+    setMsg($("quizMsg"), err.message + (err.fatal ? "" : "，請檢查網路後按「重新送出」"), true);
+    if (err.fatal) { $("retryBtn").textContent = "回到階段選擇"; $("retryBtn").onclick = () => { quiz = null; show("stageView"); }; }
+    else { $("retryBtn").textContent = "重新送出"; $("retryBtn").onclick = sendAnswer; }
+    $("retryBtn").classList.remove("hidden");
+    return;
+  }
+  setMsg($("quizMsg"), "");
+  quiz.correct = d.correctCount;
+  $("qCorrect").textContent = "答對 " + quiz.correct;
+  showFeedback(d);
+  setTimeout(() => {
+    if (d.done) { renderStages(d.stages); showResult(d.summary); }
+    else showQuestion(d.next.q, d.next.allowance, d.next.carry);
+  }, d.correct ? 800 : 1500);
+}
+
+function ansText(k) {
+  const o = quiz && quiz.q && quiz.q.options.find(x => x.k === k);
+  return o ? o.t : LABEL[k];
+}
+function showFeedback(d) {
+  const fb = $("fb");
+  document.querySelectorAll(".opt").forEach(b => {
+    if (b.dataset.k === d.answer) b.classList.add("right");
+    else if (b.classList.contains("chosen")) b.classList.add("wrong");
+  });
+  if (d.correct) {
+    fb.className = "fb ok";
+    fb.innerHTML = '<div class="mark">✓</div><div class="txt">答對！' + (d.carry > 0 ? "剩 " + d.carry.toFixed(1) + " 秒帶到下一題" : "") + "</div>";
+  } else {
+    fb.className = "fb bad";
+    fb.innerHTML = '<div class="mark">✗</div><div class="txt">' + (d.timedOut ? "時間到！" : "答錯了") + "　累積加時歸零</div>" +
+      '<div class="ans">正確：' + icon(d.answer, 32) + "<span>" + ansText(d.answer) + "</span></div>";
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if ($("quizView").classList.contains("hidden") || !accepting || !quiz) return;
+  const map = { ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right" };
+  const dir = map[e.key];
+  if (!dir && e.key !== "1" && e.key !== "2") return;
+  e.preventDefault();
+  const ks = quiz.q.options.map(o => o.k);
+  if (dir && ks.includes(dir)) return choose(dir);
+  if (ks.length === 2) {
+    if (dir === "left" || e.key === "1") return choose(ks[0]);
+    if (dir === "right" || e.key === "2") return choose(ks[1]);
+  }
+});
+
+/* ================= 結果 ================= */
+function showResult(s) {
+  $("resStage").textContent = s.stageName + " 結果";
+  $("resScore").innerHTML = s.score + ' <small>/ ' + s.max + ' 分</small>';
+  $("resCount").textContent = "答對 " + s.correctCount + " / " + s.total + " 題";
+  const st = $("resStatus");
+  $("resTest").classList.toggle("hidden", !s.test);
+  if (s.test) {
+    st.className = "result-status " + (s.passed ? "ok" : "bad");
+    st.textContent = s.passed ? "全部答對，過關！" : (s.passCount >= s.total ? "全部答對才能過關，" : "答對 " + s.passCount + " 題以上才能過關，") + (s.passed ? "" : "再試一次！");
+  } else if (s.passed) {
+    st.className = "result-status ok";
+    st.textContent = s.allCleared ? "全部階段過關，太厲害了！" : (s.newlyUnlocked ? "過關！已解鎖第" + "一二三"[s.newlyUnlocked - 1] + "階段" : "過關！");
+  } else {
+    st.className = "result-status bad";
+    st.textContent = (s.passCount >= s.total ? "全部答對才能進入下一階段，" : "答對 " + s.passCount + " 題以上才能過關，") + "再試一次！";
+  }
+  $("resDots").innerHTML = s.details.map((r, i) =>
+    '<div class="dot ' + (r.ok ? "ok" : "bad") + '">' + (i + 1) + (r.ok ? "✓" : "✗") + "<br>" + TYPE_NAME[r.t] + "</div>").join("");
+  $("resBest").textContent = s.test ? "" : "本階段最佳：" + s.stageBest + " 分　｜　全部最高分：" + s.overall + " 分（成績已記錄）";
+  const nb = $("nextStageBtn");
+  const nextStage = stages.find(x => x.stage === s.stage + 1);
+  if (nextStage && nextStage.unlocked) {
+    nb.textContent = "前往" + nextStage.name; nb.classList.remove("hidden"); nb.onclick = () => startStage(nextStage.stage);
+  } else nb.classList.add("hidden");
+  $("againBtn").onclick = () => startStage(s.stage);
+  show("resultView");
+}
+$("backBtn").addEventListener("click", () => { quiz = null; renderStages(); show("stageView"); });
+
+/* ================= 圖示 ================= */
+function icon(k, sz) {
+  const c = "currentColor";
+  const a = (rot) => '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40"><g transform="rotate(' + rot + ' 20 20)">' +
+    '<line x1="20" y1="34" x2="20" y2="12" stroke="' + c + '" stroke-width="5" stroke-linecap="round"/>' +
+    '<polygon points="20,3 31,16 9,16" fill="' + c + '"/></g></svg>';
+  if (k === "up") return a(0);
+  if (k === "right") return a(90);
+  if (k === "down") return a(180);
+  if (k === "left") return a(270);
+  if (k === "in") return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="' + c + '" stroke-width="3.5"/><line x1="12" y1="12" x2="28" y2="28" stroke="' + c + '" stroke-width="3.5"/><line x1="28" y1="12" x2="12" y2="28" stroke="' + c + '" stroke-width="3.5"/></svg>';
+  if (k === "out") return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="' + c + '" stroke-width="3.5"/><circle cx="20" cy="20" r="5" fill="' + c + '"/></svg>';
+  // 順時針 / 逆時針：圓弧 + 箭頭
+  const cw = k === "cw";
+  const arc = cw ? '<path d="M 20 6 A 14 14 0 1 1 6 20" fill="none" stroke="' + c + '" stroke-width="4"/><polygon points="20,0 29,6 20,12" fill="' + c + '"/>'
+                 : '<path d="M 20 6 A 14 14 0 1 0 34 20" fill="none" stroke="' + c + '" stroke-width="4"/><polygon points="20,0 11,6 20,12" fill="' + c + '"/>';
+  return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40">' + arc + '</svg>';
+}
+
+/* ================= 題圖（依參數繪製 SVG） =================
+   畫面座標：x 向右、y 向下；SV 為紙面上的方向單位向量。 */
+const W = 400, H = 300, HL = 334;
+const SV = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+const COL = { field:"#5c6bc0", fieldBg:"#eef0fb", wire:"#263238", v:"#e65100", I:"#c62828", N:"#e53935", S:"#1e88e5", coil:"#8d4e1a" };
+const SIDE_DIR = { top:"up", bottom:"down", left:"left", right:"right" };
+
+function txt(x, y, s, size, color, anchor, weight) {
+  return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 22) + '" fill="' + (color || "#222") + '" text-anchor="' + (anchor || "middle") +
+    '" dominant-baseline="central" font-weight="' + (weight || "bold") + '" font-family="Noto Sans TC, Noto Sans CJK TC, Microsoft JhengHei, sans-serif" stroke="#fff" stroke-width="5" paint-order="stroke">' + s + '</text>';
+}
+function sym(x, y, s, size, color) {   // 物理量符號（斜體）
+  return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 26) + '" fill="' + (color || "#111") + '" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-style="italic" font-family="Times New Roman, Noto Serif, Noto Serif CJK TC, serif" stroke="#fff" stroke-width="5" paint-order="stroke">' + s + '</text>';
+}
+function line(x1, y1, x2, y2, color, w, extra) {
+  return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + color + '" stroke-width="' + w + '" stroke-linecap="round" ' + (extra || "") + '/>';
+}
+function arrow(x1, y1, x2, y2, color, w, head) {
+  head = head || 16;
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+  const bx = x2 - ux * head, by = y2 - uy * head, hw = head * 0.6;
+  return line(x1, y1, bx, by, color, w) +
+    '<polygon points="' + x2 + ',' + y2 + ' ' + (bx - uy * hw) + ',' + (by + ux * hw) + ' ' + (bx + uy * hw) + ',' + (by - ux * hw) + '" fill="' + color + '"/>';
+}
+function arrowHead(x, y, dir, color, size) {   // 實心三角形箭頭（中心在 x,y）
+  const [ux, uy] = SV[dir], s = size || 14, hw = s * 0.65;
+  const tx = x + ux * s / 2, ty = y + uy * s / 2, bx = x - ux * s / 2, by = y - uy * s / 2;
+  return '<polygon points="' + tx + ',' + ty + ' ' + (bx - uy * hw) + ',' + (by + ux * hw) + ' ' + (bx + uy * hw) + ',' + (by - ux * hw) + '" fill="' + color + '"/>';
+}
+function distSeg(px, py, s) {
+  const [x1, y1, x2, y2] = s, dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
+  let t = L2 ? ((px - x1) * dx + (py - y1) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+function fieldSym(B, x, y) {
+  if (B === "out") return '<circle cx="' + x + '" cy="' + y + '" r="6.8" fill="#fff" stroke="' + COL.field + '" stroke-width="2"/><circle cx="' + x + '" cy="' + y + '" r="2.6" fill="' + COL.field + '"/>';
+  return line(x - 5.5, y - 5.5, x + 5.5, y + 5.5, COL.field, 2.4) + line(x + 5.5, y - 5.5, x - 5.5, y + 5.5, COL.field, 2.4);
+}
+/* 在區域內畫磁場符號；avoid：[x1,y1,x2,y2,半徑] 線段附近不畫 */
+function fieldGrid(B, rect, avoid) {
+  let s = '<rect x="' + rect[0] + '" y="' + rect[1] + '" width="' + rect[2] + '" height="' + rect[3] + '" fill="' + COL.fieldBg + '"/>';
+  // 網格以畫面中心 (200,150) 對齊、間距 30，讓線圈內的磁場區也有足夠符號
+  for (let x = 5; x < W; x += 30) for (let y = 15; y < H; y += 30) {
+    if (x < rect[0] + 10 || x > rect[0] + rect[2] - 10 || y < rect[1] + 10 || y > rect[1] + rect[3] - 10) continue;
+    if ((avoid || []).some(a => distSeg(x, y, a) < a[4] - 1)) continue;
+    s += fieldSym(B, x, y);
+  }
+  return s;
+}
+function legendField(B) {
+  return '<g transform="translate(0,' + (H + 17) + ')">' + fieldSym(B, 112, 0) +
+    txt(128, 0, "磁場 B 垂直" + (B === "out" ? "穿出" : "穿入") + "紙面", 17, "#333", "start", "normal") + '</g>';
+}
+function legendText(s) { return txt(W / 2, H + 17, s, 16, "#444", "middle", "normal"); }
+function svgWrap(inner) {
+  return '<svg viewBox="0 0 ' + W + ' ' + HL + '" xmlns="http://www.w3.org/2000/svg" role="img">' +
+    '<rect x="0" y="0" width="' + W + '" height="' + HL + '" fill="#fff"/>' + '<line x1="0" y1="' + H + '" x2="' + W + '" y2="' + H + '" stroke="#e0e4ec"/>' + inner + '</svg>';
+}
+/* 電阻（鋸齒）：沿 p1→p2 畫導線，中間 46px 為鋸齒 */
+function resistor(x1, y1, x2, y2, label, labelOut) {
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, half = 24, n = 6, amp = 9;
+  let pts = [[x1, y1], [mx - ux * half, my - uy * half]];
+  for (let i = 1; i < n; i++) { const t = -half + (2 * half) * i / n, s = (i % 2 ? 1 : -1) * amp; pts.push([mx + ux * t + nx * s, my + uy * t + ny * s]); }
+  pts.push([mx + ux * half, my + uy * half], [x2, y2]);
+  let out = '<polyline points="' + pts.map(p => p.join(",")).join(" ") + '" fill="none" stroke="' + COL.wire + '" stroke-width="4" stroke-linejoin="round"/>';
+  if (label) out += sym(mx + labelOut[0] * 26, my + labelOut[1] * 26, "R", 24, "#111");
+  return out;
+}
+
+function drawQuestion(p) {
+  try {
+    if (p.type === 1) return draw1(p);
+    if (p.type === 2) return draw2(p);
+    if (p.type === 3) return draw3(p);
+    if (p.type === 4) return p.variant === "ring" ? draw4ring(p) : draw4coil(p);
+    return draw5(p);
+  } catch (e) { return svgWrap(txt(200, 150, "圖形載入失敗", 20)); }
+}
+
+/* 1. 線圈進出磁場（磁場邊界通過線圈中心） */
+function draw1(p) {
+  const cx = 200, cy = 150, h = 62;
+  const rect = { right:[cx, 0, W - cx, H], left:[0, 0, cx, H], up:[0, 0, W, cy], down:[0, cy, W, H - cy] }[p.region];
+  const corners = { tl:[cx - h, cy - h], tr:[cx + h, cy - h], br:[cx + h, cy + h], bl:[cx - h, cy + h] };
+  const sides = { top:[corners.tl, corners.tr], right:[corners.tr, corners.br], bottom:[corners.br, corners.bl], left:[corners.bl, corners.tl] };
+  const [vx, vy] = SV[p.v];
+  // 速度箭頭畫在線圈外側（與運動方向平行的一邊之外，避開電阻那一邊）
+  let av;
+  if (vx) { const oy = (p.R === "bottom") ? cy - h - 34 : cy + h + 34; av = [cx - vx * 40, oy, cx + vx * 40, oy]; }
+  else { const ox = (p.R === "right") ? cx - h - 34 : cx + h + 34; av = [ox, cy - vy * 40, ox, cy + vy * 40]; }
+  const avoid = Object.values(sides).map(s => [s[0][0], s[0][1], s[1][0], s[1][1], 13]);
+  avoid.push([...av, 18], [av[2] + vx * 16 + (vy ? 18 : 0), av[3] + vy * 16 + (vx ? -14 : 0), av[2], av[3], 16]);
+  const rm = [(sides[p.R][0][0] + sides[p.R][1][0]) / 2, (sides[p.R][0][1] + sides[p.R][1][1]) / 2];
+  avoid.push([rm[0], rm[1], rm[0], rm[1], 34]);
+  const lo = SV[SIDE_DIR[p.R]];
+  avoid.push([rm[0] + lo[0] * 28, rm[1] + lo[1] * 28, rm[0] + lo[0] * 28, rm[1] + lo[1] * 28, 22]);
+  let s = fieldGrid(p.B, rect, avoid);
+  // 磁場邊界
+  if (p.region === "left" || p.region === "right") s += line(cx, 0, cx, H, COL.field, 2, 'stroke-dasharray="8 6"');
+  else s += line(0, cy, W, cy, COL.field, 2, 'stroke-dasharray="8 6"');
+  for (const k of ["top","right","bottom","left"]) {
+    const [a, b] = sides[k];
+    s += k === p.R ? resistor(a[0], a[1], b[0], b[1], true, lo) : line(a[0], a[1], b[0], b[1], COL.wire, 4);
+  }
+  s += arrow(av[0], av[1], av[2], av[3], COL.v, 5, 18) + sym(av[2] + vx * 16 + (vy ? 18 : 0), av[3] + vy * 16 + (vx ? -14 : 0), "v", 26, COL.v);
+  return svgWrap(s + legendField(p.B));
+}
+
+/* 2. 金屬棒在導軌上滑動（磁場遍布整個區域） */
+function draw2(p) {
+  let wires = "", avoid = [], rod, R, rodC;
+  if (p.rails === "h") {
+    const y1 = 85, y2 = 215, rx = p.R === "left" ? 45 : 355, far = p.R === "left" ? 392 : 8, xr = p.R === "left" ? 250 : 150;
+    wires += line(rx, y1, far, y1, COL.wire, 4) + line(rx, y2, far, y2, COL.wire, 4);
+    R = resistor(rx, y1, rx, y2, true, [p.R === "left" ? -1 : 1, 0]);
+    rod = line(xr, y1 - 16, xr, y2 + 16, "#546e7a", 10);
+    rodC = [xr, 150];
+    avoid.push([rx, y1, far, y1, 13], [rx, y2, far, y2, 13], [rx, y1, rx, y2, 20], [xr, y1 - 16, xr, y2 + 16, 16], [rx + (p.R === "left" ? -26 : 26), 150, rx + (p.R === "left" ? -26 : 26), 150, 20]);
+  } else {
+    const x1 = 140, x2 = 260, ry = p.R === "top" ? 48 : 252, far = p.R === "top" ? 296 : 4, yr = p.R === "top" ? 195 : 105;
+    wires += line(x1, ry, x1, far, COL.wire, 4) + line(x2, ry, x2, far, COL.wire, 4);
+    R = resistor(x1, ry, x2, ry, true, [0, p.R === "top" ? -1 : 1]);
+    rod = line(x1 - 16, yr, x2 + 16, yr, "#546e7a", 10);
+    rodC = [200, yr];
+    avoid.push([x1, ry, x1, far, 13], [x2, ry, x2, far, 13], [x1, ry, x2, ry, 20], [x1 - 16, yr, x2 + 16, yr, 16], [200, ry + (p.R === "top" ? -26 : 26), 200, ry + (p.R === "top" ? -26 : 26), 20]);
+  }
+  const [vx, vy] = SV[p.v];
+  // 速度箭頭畫在棒的旁邊（避免與棒重疊）
+  let a0, a1;
+  if (p.rails === "h") { a0 = [rodC[0] + vx * 14, 150]; a1 = [rodC[0] + vx * 84, 150]; }
+  else { a0 = [rodC[0], rodC[1] + vy * 14]; a1 = [rodC[0], rodC[1] + vy * 84]; }
+  avoid.push([a0[0], a0[1], a1[0], a1[1], 18], [a1[0] + vx * 14 + (vy ? 18 : 0), a1[1] + vy * 14 + (vx ? -18 : 0), a1[0], a1[1], 16]);
+  let s = fieldGrid(p.B, [0, 0, W, H], avoid) + wires + R + rod +
+    arrow(a0[0], a0[1], a1[0], a1[1], COL.v, 5, 18) + sym(a1[0] + (vy ? 18 : 0), a1[1] + (vx ? -18 : 0), "v", 24, COL.v);
+  return svgWrap(s + legendField(p.B));
+}
+
+/* 3. 單根金屬棒切割磁場 */
+function draw3(p) {
+  let s, avoid = [];
+  const [vx, vy] = SV[p.v];
+  if (p.rod === "v") {
+    avoid.push([200, 75, 200, 225, 18], [200, 52, 200, 52, 18], [200, 248, 200, 248, 18]);
+    const a1 = [200 + vx * 90, 150];
+    avoid.push([200 + vx * 12, 150, a1[0], 150, 18], [a1[0], 132, a1[0], 132, 16]);
+    s = fieldGrid(p.B, [0, 0, W, H], avoid) + line(200, 75, 200, 225, "#546e7a", 10) +
+      sym(200, 52, "a", 26, "#111") + sym(200, 250, "b", 26, "#111") +
+      arrow(200 + vx * 12, 150, a1[0], 150, COL.v, 5, 18) + sym(a1[0], 130, "v", 24, COL.v);
+  } else {
+    avoid.push([120, 150, 280, 150, 18], [98, 150, 98, 150, 18], [302, 150, 302, 150, 18]);
+    const a1 = [200, 150 + vy * 90];
+    avoid.push([200, 150 + vy * 12, 200, a1[1], 18], [220, a1[1], 220, a1[1], 16]);
+    s = fieldGrid(p.B, [0, 0, W, H], avoid) + line(120, 150, 280, 150, "#546e7a", 10) +
+      sym(98, 150, "a", 26, "#111") + sym(302, 150, "b", 26, "#111") +
+      arrow(200, 150 + vy * 12, 200, a1[1], COL.v, 5, 18) + sym(222, a1[1], "v", 24, COL.v);
+  }
+  return svgWrap(s + legendField(p.B));
+}
+
+/* 磁棒：x0~x1，中心高 y；face 為面向線圈那一端的磁極 */
+function magnet(x0, x1, y, faceRight, face) {
+  const hgt = 46, mid = (x0 + x1) / 2, other = face === "N" ? "S" : "N";
+  const leftPole = faceRight ? other : face, rightPole = faceRight ? face : other;
+  return '<rect x="' + x0 + '" y="' + (y - hgt / 2) + '" width="' + (mid - x0) + '" height="' + hgt + '" fill="' + COL[leftPole] + '"/>' +
+    '<rect x="' + mid + '" y="' + (y - hgt / 2) + '" width="' + (x1 - mid) + '" height="' + hgt + '" fill="' + COL[rightPole] + '"/>' +
+    '<rect x="' + x0 + '" y="' + (y - hgt / 2) + '" width="' + (x1 - x0) + '" height="' + hgt + '" fill="none" stroke="#333" stroke-width="2"/>' +
+    '<text x="' + (x0 + mid) / 2 + '" y="' + y + '" font-size="28" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">' + leftPole + '</text>' +
+    '<text x="' + (mid + x1) / 2 + '" y="' + y + '" font-size="28" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">' + rightPole + '</text>';
+}
+function mirrorX(p, x) { return p.mside === "left" ? x : W - x; }
+
+/* 4a. 磁鐵與圓形線圈（線圈平面垂直紙面，以橢圓表示） */
+function draw4ring(p) {
+  const y = 150;
+  const mx0 = mirrorX(p, 30), mx1 = mirrorX(p, 170), rx = mirrorX(p, 282);
+  const [vx] = SV[p.v];
+  let s = line(0, y, W, y, "#b0bec5", 2, 'stroke-dasharray="6 6"');
+  s += magnet(Math.min(mx0, mx1), Math.max(mx0, mx1), y, p.mside === "left", p.face);
+  // 線圈（線圈平面與紙面垂直，透視成橢圓）
+  s += '<ellipse cx="' + rx + '" cy="' + y + '" rx="24" ry="80" fill="none" stroke="' + COL.coil + '" stroke-width="6"/>';
+  // 運動箭頭
+  if (p.mover === "magnet") {
+    const c = (mx0 + mx1) / 2;
+    s += arrow(c - vx * 40, 100, c + vx * 40, 100, COL.v, 5, 18) + sym(c + vx * 40 + vx * 16, 86, "v", 24, COL.v);
+  } else {
+    s += arrow(rx - vx * 38, 46, rx + vx * 38, 46, COL.v, 5, 18) + sym(rx + vx * 38 + vx * 16, 32, "v", 24, COL.v);
+  }
+  // 觀察者（眼睛）在磁鐵外側
+  const ex = mirrorX(p, 40), dir = p.mside === "left" ? 1 : -1;
+  s += eye(ex, 232, dir) + arrow(ex + dir * 26, 232, ex + dir * 120, 232, "#6a1b9a", 3, 12) + txt(ex + dir * 70, 258, "由此方向看", 17, "#6a1b9a", "middle", "bold");
+  s += txt(rx, y + 104, "線圈", 18, COL.coil);
+  return svgWrap(s + legendText("線圈平面與紙面垂直，磁棒在線圈的軸線上"));
+}
+function eye(x, y, dir) {
+  return '<g transform="translate(' + x + ',' + y + ') scale(' + dir + ',1)"><path d="M -16 0 Q 0 -13 16 0 Q 0 13 -16 0 Z" fill="#fff" stroke="#6a1b9a" stroke-width="2.5"/><circle cx="4" cy="0" r="5" fill="#6a1b9a"/></g>';
+}
+
+/* 螺線管（斜投影）：軸沿 x，從 xa 到 xb，中心高 yc，半徑 r。
+   導線參數 t∈[0,1]：x = xa + (xb-xa)t，θ = π + wind·2π·turns·t，
+   y_物理 = r cosθ（向上為正），z = r sinθ（出紙面為正）；z>0 為前側（實線）。 */
+function helix(xa, xb, yc, r, turns, wind) {
+  const K = 0.38, N = 360;
+  let pts = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, th = Math.PI + wind * 2 * Math.PI * turns * t;
+    const x = xa + (xb - xa) * t, yp = r * Math.cos(th), z = r * Math.sin(th);
+    pts.push([x + K * z, yc - yp, z]);
+  }
+  let back = "", front = "", prev = null;
+  for (let i = 0; i < N; i++) {
+    const a = pts[i], b = pts[i + 1], zf = (a[2] + b[2]) / 2, side = zf > 0 ? "f" : "b";
+    const P = (q) => q[0].toFixed(1) + "," + q[1].toFixed(1);
+    const add = (side === prev ? " L" : " M" + P(a) + " L") + P(b);
+    if (zf > 0) front += add; else back += add;   // 同一側連續的線段連成一條路徑（虛線才看得出來）
+    prev = side;
+  }
+  return {
+    svg: '<path d="' + back + '" fill="none" stroke="#8a96a3" stroke-width="2.5" stroke-dasharray="6 5"/>' +
+         '<path d="' + front + '" fill="none" stroke="' + COL.coil + '" stroke-width="5" stroke-linecap="round"/>',
+    start: [pts[0][0], pts[0][1]], end: [pts[N][0], pts[N][1]]
+  };
+}
+
+/* 4b. 磁鐵與螺線管＋電阻 */
+function draw4coil(p) {
+  const yc = 125, r = 52;
+  const xa = p.mside === "left" ? 190 : 62, xb = xa + 148;
+  const hx = helix(xa, xb, yc, r, 4, p.wind);
+  const yb = 262;
+  let s = line(0, yc, W, yc, "#b0bec5", 2, 'stroke-dasharray="6 6"');
+  const mx0 = p.mside === "left" ? 18 : 262, mx1 = mx0 + 120;
+  s += magnet(mx0, mx1, yc, p.mside === "left", p.face);
+  s += hx.svg;
+  s += line(hx.start[0], hx.start[1], hx.start[0], yb, COL.wire, 4) + line(hx.end[0], hx.end[1], hx.end[0], yb, COL.wire, 4);
+  s += resistor(hx.start[0], yb, hx.end[0], yb, true, [0, -1]);
+  const [vx] = SV[p.v];
+  if (p.mover === "magnet") {
+    const c = (mx0 + mx1) / 2;
+    s += arrow(c - vx * 40, 78, c + vx * 40, 78, COL.v, 5, 18) + sym(c + vx * 40 + vx * 16, 62, "v", 24, COL.v);
+  } else {
+    const c = (xa + xb) / 2;
+    s += arrow(c - vx * 40, 42, c + vx * 40, 42, COL.v, 5, 18) + sym(c + vx * 40 + vx * 16, 28, "v", 24, COL.v);
+  }
+  return svgWrap(s + legendText("實線：線圈前側導線　虛線：後側導線"));
+}
+
+/* 5. 電流磁效應 */
+function draw5(p) {
+  let s = "";
+  if (p.variant === "wireP") {
+    if (p.orient === "v") {
+      const px = p.P === "right" ? 310 : 90;
+      s += line(200, 15, 200, 285, COL.wire, 5) + arrowHead(200, 100, p.I, COL.I, 26) + sym(226, 100, "I", 26, COL.I);
+      s += '<circle cx="' + px + '" cy="160" r="7" fill="#111"/>' + sym(px, 190, "P", 26, "#111");
+    } else {
+      const py = p.P === "up" ? 60 : 240;
+      s += line(15, 150, 385, 150, COL.wire, 5) + arrowHead(110, 150, p.I, COL.I, 26) + sym(110, 124, "I", 26, COL.I);
+      s += '<circle cx="230" cy="' + py + '" r="7" fill="#111"/>' + sym(258, py, "P", 26, "#111");
+    }
+    return svgWrap(s + legendText("導線在紙面上"));
+  }
+  if (p.variant === "wireDot") {
+    const [dx, dy] = SV[p.P], px = 200 + dx * 120, py = 150 + dy * 112;
+    s += '<circle cx="200" cy="150" r="26" fill="#fff" stroke="' + COL.I + '" stroke-width="4"/>';
+    s += p.I === "out" ? '<circle cx="200" cy="150" r="8" fill="' + COL.I + '"/>' : line(186, 136, 214, 164, COL.I, 4.5) + line(214, 136, 186, 164, COL.I, 4.5);
+    s += sym(200 + (dx === 0 ? 40 : 0), 150 + (dx !== 0 ? -42 : 0) + (dy !== 0 ? 0 : 0), "I", 26, COL.I);
+    const lx = px + (dx === 0 ? 34 : 0), ly = py + (dx !== 0 ? 38 : 0);
+    if (p.ask === "compass") {
+      s += '<circle cx="' + px + '" cy="' + py + '" r="24" fill="#fffde7" stroke="#555" stroke-width="3"/>' + txt(px, py, "?", 24, "#555");
+      s += sym(lx + (dx === 0 ? 22 : 0), ly + (dx !== 0 ? 8 : 0), "P", 24, "#111");
+    } else {
+      s += '<circle cx="' + px + '" cy="' + py + '" r="7" fill="#111"/>' + sym(lx, ly, "P", 26, "#111");
+    }
+    return svgWrap(s + legendText(p.I === "out" ? "⊙ 表示電流垂直穿出紙面" : "⊗ 表示電流垂直穿入紙面"));
+  }
+  if (p.variant === "loop") {
+    const cx = p.at === "center" ? 200 : 165, cy = 150, r = 105;
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + COL.wire + '" stroke-width="5"/>';
+    // 箭頭：逆時針（畫面上）在頂端向左、底端向右
+    const topDir = p.I === "ccw" ? "left" : "right", botDir = p.I === "ccw" ? "right" : "left";
+    s += arrowHead(cx, cy - r, topDir, COL.I, 26) + arrowHead(cx, cy + r, botDir, COL.I, 26) + sym(cx + 34, cy - r - 4, "I", 26, COL.I);
+    if (p.at === "center") s += '<circle cx="' + cx + '" cy="' + cy + '" r="7" fill="#111"/>' + sym(cx + 24, cy + 14, "O", 24, "#111");
+    else s += '<circle cx="335" cy="' + cy + '" r="7" fill="#111"/>' + sym(358, cy + 4, "P", 26, "#111");
+    return svgWrap(s + legendText("線圈在紙面上"));
+  }
+  // sol：螺線管＋電池
+  const yc = 115, r = 55, xa = 115, xb = 275, yb = 250;
+  const hx = helix(xa, xb, yc, r, 4, p.wind);
+  s += hx.svg;
+  const L = hx.start, Rr = hx.end;
+  s += line(L[0], L[1], L[0], yb, COL.wire, 4) + line(Rr[0], Rr[1], Rr[0], yb, COL.wire, 4);
+  const bx = (L[0] + Rr[0]) / 2, pl = p.plus === "left" ? -1 : 1;
+  const xPlus = bx + pl * 8, xMinus = bx - pl * 8;
+  s += line(L[0], yb, Math.min(xPlus, xMinus), yb, COL.wire, 4) + line(Math.max(xPlus, xMinus), yb, Rr[0], yb, COL.wire, 4);
+  s += line(xPlus, yb - 24, xPlus, yb + 24, "#111", 3) + line(xMinus, yb - 12, xMinus, yb + 12, "#111", 8, 'stroke-linecap="butt"');
+  s += txt(xPlus + pl * 14, yb - 28, "+", 26, "#c62828") + txt(xMinus - pl * 14, yb - 26, "−", 26, "#1565c0");
+  // 電流箭頭：由正極流出，沿正極側導線向上進入螺線管；負極側向下
+  const upX = p.plus === "left" ? L[0] : Rr[0], downX = p.plus === "left" ? Rr[0] : L[0];
+  s += arrowHead(upX, 212, "up", COL.I, 22) + sym(upX + (p.plus === "left" ? -22 : 22), 212, "I", 24, COL.I);
+  s += arrowHead(downX, 212, "down", COL.I, 22);
+  s += txt(xa - 30, yc, "左", 20, "#555") + txt(xb + 52, yc, "右", 20, "#555");
+  return svgWrap(s + legendText("實線：線圈前側導線　虛線：後側導線"));
+}
+</script>
+</body>
+</html>
