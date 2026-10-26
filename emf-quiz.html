@@ -528,11 +528,23 @@ function icon(k, sz) {
   if (k === "left") return a(270);
   if (k === "in") return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="' + c + '" stroke-width="3.5"/><line x1="12" y1="12" x2="28" y2="28" stroke="' + c + '" stroke-width="3.5"/><line x1="28" y1="12" x2="12" y2="28" stroke="' + c + '" stroke-width="3.5"/></svg>';
   if (k === "out") return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="' + c + '" stroke-width="3.5"/><circle cx="20" cy="20" r="5" fill="' + c + '"/></svg>';
-  // 順時針 / 逆時針：圓弧 + 箭頭
-  const cw = k === "cw";
-  const arc = cw ? '<path d="M 20 6 A 14 14 0 1 1 6 20" fill="none" stroke="' + c + '" stroke-width="4"/><polygon points="20,0 29,6 20,12" fill="' + c + '"/>'
-                 : '<path d="M 20 6 A 14 14 0 1 0 34 20" fill="none" stroke="' + c + '" stroke-width="4"/><polygon points="20,0 11,6 20,12" fill="' + c + '"/>';
-  return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40">' + arc + '</svg>';
+  return rotIcon(k === "cw", sz, c);
+}
+/* 順時針／逆時針圖示：圓弧（約 290°）＋箭頭畫在圓弧的「終點」，箭頭方向＝前進方向。
+   畫面座標 y 向下，所以角度增加＝順時針。逆時針圖示為順時針圖示的左右鏡像。 */
+function rotIcon(cw, sz, c) {
+  const cx = 20, cy = 21, r = 13, deg = Math.PI / 180;
+  const a1 = -60 * deg, a0 = a1 - 290 * deg;            // 順時針：從右側出發，繞一圈到右上方
+  const mx = (x) => cw ? x : 40 - x;                     // 逆時針：左右鏡像
+  const P = (a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const S = P(a0), E = P(a1);
+  const t = [-Math.sin(a1), Math.cos(a1)], n = [Math.cos(a1), Math.sin(a1)];   // 終點切線（前進方向）、法線
+  const tip = [E[0] + t[0] * 9, E[1] + t[1] * 9];
+  const b1 = [E[0] - t[0] * 1 + n[0] * 6.5, E[1] - t[1] * 1 + n[1] * 6.5], b2 = [E[0] - t[0] * 1 - n[0] * 6.5, E[1] - t[1] * 1 - n[1] * 6.5];
+  const f = (q) => mx(q[0]).toFixed(2) + "," + q[1].toFixed(2);
+  return '<svg class="rot" data-dir="' + (cw ? "cw" : "ccw") + '" width="' + sz + '" height="' + sz + '" viewBox="0 0 40 40">' +
+    '<path class="arc" d="M ' + f(S).replace(",", " ") + ' A ' + r + ' ' + r + ' 0 1 ' + (cw ? 1 : 0) + ' ' + f(E).replace(",", " ") + '" fill="none" stroke="' + c + '" stroke-width="4" stroke-linecap="round"/>' +
+    '<polygon class="head" points="' + f(tip) + ' ' + f(b1) + ' ' + f(b2) + '" fill="' + c + '" stroke="' + c + '" stroke-width="1" stroke-linejoin="round"/></svg>';
 }
 
 /* ================= 題圖（依參數繪製 SVG） =================
@@ -734,8 +746,8 @@ function draw4ring(p) {
   const [vx] = SV[p.v];
   let s = line(0, y, W, y, "#b0bec5", 2, 'stroke-dasharray="6 6"');
   s += magnet(Math.min(mx0, mx1), Math.max(mx0, mx1), y, p.mside === "left", p.face);
-  // 線圈（線圈平面與紙面垂直，透視成橢圓）
-  s += '<ellipse cx="' + rx + '" cy="' + y + '" rx="24" ry="80" fill="none" stroke="' + COL.coil + '" stroke-width="6"/>';
+  // 線圈（線圈平面與紙面垂直）：和螺線管同樣的斜投影，前半圈（靠近看圖的人）實線、後半圈虛線
+  s += ringSvg(ringGeom(p));
   // 運動箭頭
   if (p.mover === "magnet") {
     const c = (mx0 + mx1) / 2;
@@ -748,6 +760,25 @@ function draw4ring(p) {
   s += eye(ex, 232, dir) + arrow(ex + dir * 26, 232, ex + dir * 120, 232, "#6a1b9a", 3, 12) + txt(ex + dir * 70, 258, "由此方向看", 17, "#6a1b9a", "middle", "bold");
   s += txt(rx, y + 104, "線圈", 18, COL.coil);
   return svgWrap(s + legendText("線圈平面與紙面垂直，磁棒在線圈的軸線上"));
+}
+/* 單匝線圈的斜投影（同螺線管 helix）：軸沿 x，θ∈[0,2π)，y_物理 = r cosθ（向上為正）、z = r sinθ（出紙面為正），
+   畫面座標 x = cx + K·z、y = yc − r cosθ。K 的正負讓「看圖的視角」站在磁鐵那一側
+   （磁鐵在左：K>0，前側往右偏，等於從左方斜看；磁鐵在右：K<0），
+   因此圖上看到的繞行方向與「由磁鐵這一側看」一致，不會互相矛盾。 */
+function ringGeom(p) {
+  const yc = 150, r = 80, K = 0.38 * (p.mside === "left" ? 1 : -1), cx = mirrorX(p, 282), N = 240;
+  const pts = [];
+  for (let i = 0; i <= N; i++) { const th = 2 * Math.PI * i / N, z = r * Math.sin(th); pts.push([cx + K * z, yc - r * Math.cos(th), z, th]); }
+  return { pts, cx, yc, r, K };
+}
+function ringSvg(g) {
+  const P = (q) => q[0].toFixed(1) + "," + q[1].toFixed(1);
+  const N = g.pts.length - 1, half = N / 2;
+  let front = "M" + P(g.pts[0]), back = "M" + P(g.pts[half]);
+  for (let i = 1; i <= half; i++) front += " L" + P(g.pts[i]);          // θ∈[0,π]：z ≥ 0，前側
+  for (let i = half + 1; i <= N; i++) back += " L" + P(g.pts[i]);       // θ∈[π,2π]：z ≤ 0，後側
+  return '<path class="ring-back" d="' + back + '" fill="none" stroke="#8a96a3" stroke-width="3" stroke-dasharray="7 5"/>' +
+         '<path class="ring-front" d="' + front + '" fill="none" stroke="' + COL.coil + '" stroke-width="6.5" stroke-linecap="round"/>';
 }
 function eye(x, y, dir) {
   return '<g transform="translate(' + x + ',' + y + ') scale(' + dir + ',1)"><path d="M -16 0 Q 0 -13 16 0 Q 0 13 -16 0 Z" fill="#fff" stroke="#6a1b9a" stroke-width="2.5"/><circle cx="4" cy="0" r="5" fill="#6a1b9a"/></g>';
