@@ -100,6 +100,18 @@
   .tbadge { display:inline-block; background:#ef6c00; color:#fff; font-weight:bold; font-size:.85em; padding:1px 10px; border-radius:20px; vertical-align:middle; }
   .testnote { background:#fff3e0; border:2px solid #ffb74d; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-weight:bold; color:#bf360c; text-align:center; }
   .testresult { background:#fff3e0; border:2px solid #ef6c00; color:#bf360c; font-weight:bold; font-size:1.15em; border-radius:12px; padding:8px 12px; margin-bottom:10px; }
+  /* 答錯檢討（放在右側答題區／手機在圖下方，不蓋住題圖） */
+  .review { margin-top:12px; background:#fff; border:3px solid var(--bad); border-radius:14px; padding:10px 14px; text-align:center; }
+  .review .rv-head { display:flex; align-items:center; justify-content:center; gap:10px; font-weight:bold; font-size:1.15em; color:var(--bad); flex-wrap:wrap; }
+  .review .rv-mark { font-size:1.8em; line-height:1; }
+  .review .carrytxt { color:#6a1b9a; font-size:.85em; }
+  .review .rv-ans { display:inline-flex; align-items:center; gap:8px; font-weight:bold; font-size:1.15em; color:var(--ok);
+                    border:3px solid var(--ok); border-radius:12px; padding:2px 12px; margin-top:6px; background:#f1f8e9; }
+  .review .btn { margin-top:10px; font-size:1.25em; padding:12px; }
+  .review .rv-key { color:#7a8595; font-size:.75em; margin-top:4px; }
+  .opt.right.answer { box-shadow:0 0 0 3px #a5d6a7; }
+  @media (max-width:899px), (max-aspect-ratio:4/3) { .review { margin-top:8px; padding:8px 10px; } .review .btn { margin-top:8px; padding:11px; } }
+  .opentext { margin-top:8px; font-weight:bold; color:#bf360c; background:#fff3e0; border-radius:8px; padding:4px 10px; display:inline-block; }
   /* 首頁說明 */
   .intro { padding:14px 18px; border-left:6px solid var(--main2); }
   .intro h2 { font-size:1.1em; margin-bottom:6px; color:var(--main); }
@@ -138,6 +150,7 @@
   <section id="loginView">
    <div class="card intro" id="introCard">
     <h2>闖關說明</h2>
+    <div class="opentext hidden" id="openText"></div>
     <div id="introText"><p>看圖判斷方向，點選正確答案（電腦也可以用鍵盤方向鍵作答）。</p><ul><li>共三個階段，每一階段過關後才能進入下一階段。</li><li>每題有時間限制；答對時，本題剩下的秒數會加到下一題，可以一直累積。</li><li>答錯：只失去本題剩下的秒數，之前累積的加時保留；時間到則本題答錯。</li><li>圖上橘色的「電流？」標示要判斷電流方向的位置。</li></ul></div>
    </div>
    <div class="card">
@@ -186,6 +199,7 @@
       <div class="diagram"><div id="svgBox"></div><div class="fb hidden" id="fb"></div></div>
       <div class="qside">
         <div class="opts two" id="opts"></div>
+        <div class="review hidden" id="review" aria-live="polite"></div>
         <div class="keyhint" id="keyHint">電腦可用鍵盤方向鍵作答</div>
         <div id="quizMsg" class="msg error center"></div>
         <button id="retryBtn" class="btn hidden" type="button">重新送出</button>
@@ -292,7 +306,11 @@ function setTimeHint(keep) {
 (async function loadInfo() {
   try {
     const d = await callApi({ action:"info" });
-    if (d && d.ok) { if (typeof d.intro === "string") renderIntro(d.intro); setTimeHint(d.wrongKeep); }
+    if (d && d.ok) {
+      if (typeof d.intro === "string") renderIntro(d.intro);
+      setTimeHint(d.wrongKeep);
+      if (d.openText) { $("openText").textContent = d.openText; $("openText").classList.remove("hidden"); }
+    }
   } catch (err) { /* 連線失敗：保留內建說明 */ }
 })();
 
@@ -367,6 +385,7 @@ let pending = null; // 送出中的作答（供重送）
 
 function showQuestion(q, allowance, carry) {
   quiz.q = q; quiz.allowance = allowance; quiz.carry = carry;
+  review = null; $("review").classList.add("hidden"); $("review").innerHTML = ""; $("keyHint").classList.remove("hidden");
   $("qStage").textContent = quiz.stageName;
   $("qCount").textContent = "第 " + (q.index + 1) + " / " + quiz.total + " 題";
   $("qCorrect").textContent = "答對 " + quiz.correct;
@@ -420,7 +439,8 @@ function choose(k) {
   if (timer && timer.raf) cancelAnimationFrame(timer.raf);
   const used = Math.min(timer.allowance, (performance.now() - timer.start) / 1000);   // 送出期間計時暫停
   document.querySelectorAll(".opt").forEach(b => { b.disabled = true; if (b.dataset.k === k) b.classList.add("chosen"); });
-  pending = { action:"answer", token:quiz.token, index:quiz.q.index, choice:k, used:Math.round(used * 10) / 10 };
+  // pause:true＝這個網頁支援「答錯後暫停」（舊版伺服器會忽略，照舊自動跳題）
+  pending = { action:"answer", token:quiz.token, index:quiz.q.index, choice:k, used:Math.round(used * 10) / 10, pause:true };
   sendAnswer();
 }
 
@@ -443,11 +463,59 @@ async function sendAnswer() {
   setMsg($("quizMsg"), "");
   quiz.correct = d.correctCount;
   $("qCorrect").textContent = "答對 " + quiz.correct;
+  if (!d.correct && d.paused) { showReview(d); return; }   // 答錯／逾時：停在這一題，按「下一題」才繼續
   showFeedback(d);
   setTimeout(() => {
     if (d.done) { renderStages(d.stages); showResult(d.summary); }
     else showQuestion(d.next.q, d.next.allowance, d.next.carry);
   }, d.correct ? 800 : 1500);
+}
+
+/* ===== 答錯檢討：題圖保留，回饋與「下一題」放在答題區（不蓋住題圖） ===== */
+let review = null;   // { d, armedAt, going }
+function markOptions(d) {
+  document.querySelectorAll(".opt").forEach(b => {
+    b.disabled = true;
+    if (b.dataset.k === d.answer) b.classList.add("right", "answer");
+    else if (b.classList.contains("chosen")) b.classList.add("wrong");
+  });
+}
+function showReview(d) {
+  markOptions(d);
+  const keep = !d.timedOut && d.carry > 0;
+  const carryTxt = keep ? "累積加時保留 +" + d.carry.toFixed(1) + " 秒" : "累積加時歸零";
+  const box = $("review");
+  box.innerHTML = '<div class="rv-head"><span class="rv-mark">✗</span><span>' + (d.timedOut ? "時間到！" : "答錯了") + '</span><span class="carrytxt">' + carryTxt + '</span></div>' +
+    '<div class="rv-ans">正確：' + icon(d.answer, 30) + "<span>" + ansText(d.answer) + "</span></div>" +
+    '<button class="btn" id="nextBtn" type="button">' + (d.done ? "看結果" : "下一題") + '</button>' +
+    '<div class="rv-key">想清楚再按；下一題按下後才開始計時' + (matchMedia("(hover:hover)").matches ? "（Enter／空白鍵／→）" : "") + '</div>';
+  box.classList.remove("hidden");
+  $("keyHint").classList.add("hidden");
+  review = { d, armedAt: performance.now(), going: false };
+  const nb = $("nextBtn");
+  nb.addEventListener("click", goNext);
+  nb.focus({ preventScroll: true });
+  // 手機：確保按鈕看得到（只捲動必要的距離）
+  const r = nb.getBoundingClientRect();
+  if (r.bottom > window.innerHeight) window.scrollBy({ top: r.bottom - window.innerHeight + 12 });
+}
+async function goNext() {
+  if (!review || review.going || !quiz) return;
+  const d = review.d;
+  if (d.done) { review = null; renderStages(d.stages); showResult(d.summary); return; }
+  review.going = true;
+  const nb = $("nextBtn"); nb.disabled = true; nb.textContent = "載入中…";
+  setMsg($("quizMsg"), "");
+  try {
+    const r = await callApi({ action:"next", token:quiz.token, index:d.index + 1 });
+    if (!r.ok) throw Object.assign(new Error(r.error || "無法取得下一題"), { fatal: true });
+    window.scrollTo(0, 0);
+    showQuestion(r.q, r.allowance, r.carry);
+  } catch (err) {
+    setMsg($("quizMsg"), err.message + (err.fatal ? "" : "，請檢查網路後再按一次"), true);
+    if (err.fatal) { review = null; $("retryBtn").textContent = "回到階段選擇"; $("retryBtn").onclick = () => { quiz = null; show("stageView"); }; $("retryBtn").classList.remove("hidden"); }
+    else { review.going = false; nb.disabled = false; nb.textContent = "下一題"; }
+  }
 }
 
 function ansText(k) {
@@ -473,6 +541,13 @@ function showFeedback(d) {
 }
 
 document.addEventListener("keydown", (e) => {
+  if (!$("quizView").classList.contains("hidden") && review && !review.going) {
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar" || e.key === "ArrowRight") {
+      e.preventDefault();
+      if (performance.now() - review.armedAt > 400) goNext();   // 避免連按方向鍵直接跳過
+    }
+    return;
+  }
   if ($("quizView").classList.contains("hidden") || !accepting || !quiz) return;
   const map = { ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right" };
   const dir = map[e.key];
