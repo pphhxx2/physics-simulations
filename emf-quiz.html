@@ -100,6 +100,12 @@
   .tbadge { display:inline-block; background:#ef6c00; color:#fff; font-weight:bold; font-size:.85em; padding:1px 10px; border-radius:20px; vertical-align:middle; }
   .testnote { background:#fff3e0; border:2px solid #ffb74d; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-weight:bold; color:#bf360c; text-align:center; }
   .testresult { background:#fff3e0; border:2px solid #ef6c00; color:#bf360c; font-weight:bold; font-size:1.15em; border-radius:12px; padding:8px 12px; margin-bottom:10px; }
+  /* 首頁說明 */
+  .intro { padding:14px 18px; border-left:6px solid var(--main2); }
+  .intro h2 { font-size:1.1em; margin-bottom:6px; color:var(--main); }
+  .intro p { margin:4px 0; }
+  .intro ul { margin:4px 0; padding-left:1.3em; }
+  .intro li { margin:3px 0; }
   .qgrid { display:grid; grid-template-columns:1fr; grid-template-areas:"prompt" "diagram" "side"; }
   .qgrid .prompt { grid-area:prompt; } .qgrid .diagram { grid-area:diagram; } .qgrid .qside { grid-area:side; }
   @media (min-width:900px) {
@@ -130,15 +136,19 @@
 <main>
   <!-- 登入 -->
   <section id="loginView">
+   <div class="card intro" id="introCard">
+    <h2>闖關說明</h2>
+    <div id="introText"><p>看圖判斷方向，點選正確答案（電腦也可以用鍵盤方向鍵作答）。</p><ul><li>共三個階段，每一階段過關後才能進入下一階段。</li><li>每題有時間限制；答對時，本題剩下的秒數會加到下一題，可以一直累積。</li><li>答錯：只失去本題剩下的秒數，之前累積的加時保留；時間到：累積加時歸零。</li><li>圖上橘色的「電流？」標示要判斷電流方向的位置。</li></ul></div>
+   </div>
    <div class="card">
     <h2>學生登入</h2>
     <form id="loginForm" autocomplete="off">
       <label for="sid">學號（6碼）</label>
       <input id="sid" inputmode="numeric" maxlength="6" placeholder="例：110101" required>
       <label for="bd">出生月日（4碼，例：0408）</label>
-      <input id="bd" inputmode="numeric" maxlength="4" placeholder="MMDD" required>
+      <input id="bd" inputmode="numeric" maxlength="4" type="password" autocomplete="off" pattern="[0-9]*" placeholder="MMDD" required>
       <label for="pid">身分證後4碼</label>
-      <input id="pid" inputmode="numeric" maxlength="4" type="password" required>
+      <input id="pid" inputmode="numeric" maxlength="4" type="password" autocomplete="off" required>
       <button id="loginBtn" class="btn" type="submit">登入</button>
       <div id="loginMsg" class="msg"></div>
     </form>
@@ -157,7 +167,7 @@
     <h2>選擇闖關階段</h2>
     <div class="testnote hidden" id="testNote"><span class="tbadge">測試模式</span> 可任選階段，成績不會記錄</div>
     <div class="rule" id="ruleText">全部答對才能進入下一階段</div>
-    <div class="hint">答對時，本題剩下的秒數會加到下一題（可累積）；答錯或逾時，累積的加時歸零。</div>
+    <div class="hint" id="timeHint">答對時，本題剩下的秒數會加到下一題（可累積）；答錯只失去本題剩下的秒數，之前累積的加時保留；時間到則累積加時歸零。</div>
     <div id="stageList"></div>
     <div class="overall" id="overallText"></div>
     <div id="stageMsg" class="msg error"></div>
@@ -234,6 +244,7 @@ async function callApi(payload) {
 }
 
 /* ================= 登入 ================= */
+$("bd").addEventListener("input", (e) => { const v = toHalf(e.target.value).replace(/\D/g, "").slice(0, 4); if (v !== e.target.value) e.target.value = v; });
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = toHalf($("sid").value), birthday = toHalf($("bd").value), pid = toHalf($("pid").value).toUpperCase();
@@ -247,11 +258,43 @@ $("loginForm").addEventListener("submit", async (e) => {
     cred = { id, birthday, pid }; testMode = false; setTestUi();
     user = { name:d.name, cls:d.cls, seat:d.seat };
     $("who").textContent = d.cls + " 班 " + d.seat + " 號 " + d.name;
+    setTimeHint(d.wrongKeep);
     renderStages(d.stages, d.overall, d.perStage, d.passCount);
     show("stageView");
   } catch (err) { setMsg($("loginMsg"), err.message, true); }
   finally { btn.disabled = false; btn.textContent = "登入"; }
 });
+
+/* ================= 首頁說明（老師在試算表「設定」分頁的「首頁說明」修改） ================= */
+function renderIntro(text) {
+  const box = $("introText");
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.trim()).filter(x => x !== "");
+  if (!lines.length) return false;            // 空白 → 保留網頁內建說明
+  box.textContent = "";
+  let ul = null;
+  lines.forEach(l => {
+    const m = l.match(/^[・•●‧\-\*]\s*(.*)$/);
+    if (m) {
+      if (!ul) { ul = document.createElement("ul"); box.appendChild(ul); }
+      const li = document.createElement("li"); li.textContent = m[1]; ul.appendChild(li);   // textContent：不會執行 HTML
+    } else {
+      ul = null;
+      const pEl = document.createElement("p"); pEl.textContent = l; box.appendChild(pEl);
+    }
+  });
+  return true;
+}
+function setTimeHint(keep) {
+  if (keep === undefined || keep === null) return;
+  $("timeHint").textContent = "答對時，本題剩下的秒數會加到下一題（可累積）；" +
+    (keep ? "答錯只失去本題剩下的秒數，之前累積的加時保留；時間到則累積加時歸零。" : "答錯或時間到，累積的加時歸零。");
+}
+(async function loadInfo() {
+  try {
+    const d = await callApi({ action:"info" });
+    if (d && d.ok) { if (typeof d.intro === "string") renderIntro(d.intro); setTimeHint(d.wrongKeep); }
+  } catch (err) { /* 連線失敗：保留內建說明 */ }
+})();
 
 /* ================= 測試模式 ================= */
 $("testBtn").addEventListener("click", async () => {
@@ -261,6 +304,7 @@ $("testBtn").addEventListener("click", async () => {
     if (!d.ok) throw new Error(d.error || "無法進入測試模式");
     testMode = true; cred = null; user = null;
     setTestUi();
+    setTimeHint(d.wrongKeep);
     renderStages(d.stages, null, d.perStage, d.passCount);
     show("stageView");
   } catch (err) { setMsg($("testMsg"), err.message, true); }
@@ -421,7 +465,9 @@ function showFeedback(d) {
     fb.innerHTML = '<div class="mark">✓</div><div class="txt">答對！' + (d.carry > 0 ? "剩 " + d.carry.toFixed(1) + " 秒帶到下一題" : "") + "</div>";
   } else {
     fb.className = "fb bad";
-    fb.innerHTML = '<div class="mark">✗</div><div class="txt">' + (d.timedOut ? "時間到！" : "答錯了") + "　累積加時歸零</div>" +
+    const keep = !d.timedOut && d.carry > 0;
+    const carryTxt = keep ? "累積加時保留 +" + d.carry.toFixed(1) + " 秒" : "累積加時歸零";
+    fb.innerHTML = '<div class="mark">✗</div><div class="txt">' + (d.timedOut ? "時間到！" : "答錯了") + '　<span class="carrytxt">' + carryTxt + "</span></div>" +
       '<div class="ans">正確：' + icon(d.answer, 32) + "<span>" + ansText(d.answer) + "</span></div>";
   }
 }
@@ -493,15 +539,16 @@ function icon(k, sz) {
    畫面座標：x 向右、y 向下；SV 為紙面上的方向單位向量。 */
 const W = 400, H = 300, HL = 334;
 const SV = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
-const COL = { field:"#5c6bc0", fieldBg:"#eef0fb", wire:"#263238", v:"#e65100", I:"#c62828", N:"#e53935", S:"#1e88e5", coil:"#8d4e1a" };
+const COL = { field:"#7f8bd0", fieldBg:"#eef0fb", ask:"#e65100", askHL:"#ffcc80", wire:"#263238", v:"#e65100", I:"#c62828", N:"#e53935", S:"#1e88e5", coil:"#8d4e1a" };
 const SIDE_DIR = { top:"up", bottom:"down", left:"left", right:"right" };
+const OPP_DIR = { up:"down", down:"up", left:"right", right:"left" };
 
 function txt(x, y, s, size, color, anchor, weight) {
   return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 22) + '" fill="' + (color || "#222") + '" text-anchor="' + (anchor || "middle") +
-    '" dominant-baseline="central" font-weight="' + (weight || "bold") + '" font-family="Noto Sans TC, Noto Sans CJK TC, Microsoft JhengHei, sans-serif" stroke="#fff" stroke-width="5" paint-order="stroke">' + s + '</text>';
+    '" dominant-baseline="central" font-weight="' + (weight || "bold") + '" font-family="Noto Sans TC, Noto Sans CJK TC, Microsoft JhengHei, sans-serif" stroke="#fff" stroke-width="6" stroke-linejoin="round" paint-order="stroke">' + s + '</text>';
 }
 function sym(x, y, s, size, color) {   // 物理量符號（斜體）
-  return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 26) + '" fill="' + (color || "#111") + '" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-style="italic" font-family="Times New Roman, Noto Serif, Noto Serif CJK TC, serif" stroke="#fff" stroke-width="5" paint-order="stroke">' + s + '</text>';
+  return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 26) + '" fill="' + (color || "#111") + '" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-style="italic" font-family="Times New Roman, Noto Serif, Noto Serif CJK TC, serif" stroke="#fff" stroke-width="6" stroke-linejoin="round" paint-order="stroke">' + s + '</text>';
 }
 function line(x1, y1, x2, y2, color, w, extra) {
   return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + color + '" stroke-width="' + w + '" stroke-linecap="round" ' + (extra || "") + '/>';
@@ -510,33 +557,53 @@ function arrow(x1, y1, x2, y2, color, w, head) {
   head = head || 16;
   const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
   const bx = x2 - ux * head, by = y2 - uy * head, hw = head * 0.6;
-  return line(x1, y1, bx, by, color, w) +
-    '<polygon points="' + x2 + ',' + y2 + ' ' + (bx - uy * hw) + ',' + (by + ux * hw) + ' ' + (bx + uy * hw) + ',' + (by - ux * hw) + '" fill="' + color + '"/>';
+  const pts = x2 + ',' + y2 + ' ' + (bx - uy * hw) + ',' + (by + ux * hw) + ' ' + (bx + uy * hw) + ',' + (by - ux * hw);
+  // 白色外框（halo）：箭頭畫在磁場底圖上時仍清楚
+  return '<g class="fg">' + line(x1, y1, bx, by, "#fff", w + 9) + '<polygon points="' + pts + '" fill="#fff" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>' +
+    line(x1, y1, bx, by, color, w) + '<polygon points="' + pts + '" fill="' + color + '"/></g>';
+}
+/* 前景導線：先畫較粗的白線當外框，再畫深色導線（蓋在磁場底圖上） */
+function wire(x1, y1, x2, y2, color, w) {
+  return '<g class="fg">' + line(x1, y1, x2, y2, "#fff", w + 10) + line(x1, y1, x2, y2, color, w) + '</g>';
 }
 function arrowHead(x, y, dir, color, size) {   // 實心三角形箭頭（中心在 x,y）
   const [ux, uy] = SV[dir], s = size || 14, hw = s * 0.65;
   const tx = x + ux * s / 2, ty = y + uy * s / 2, bx = x - ux * s / 2, by = y - uy * s / 2;
   return '<polygon points="' + tx + ',' + ty + ' ' + (bx - uy * hw) + ',' + (by + ux * hw) + ' ' + (bx + uy * hw) + ',' + (by - ux * hw) + '" fill="' + color + '"/>';
 }
-function distSeg(px, py, s) {
-  const [x1, y1, x2, y2] = s, dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
-  let t = L2 ? ((px - x1) * dx + (py - y1) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
-  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+function fieldSym(B, x, y, cls) {   // 磁場符號：× 入紙面、實心點 出紙面（不畫圓圈）
+  const c = cls ? ' class="' + cls + '"' : '';
+  if (B === "out") return '<circle' + c + ' cx="' + x + '" cy="' + y + '" r="3.6" fill="' + COL.field + '"/>';
+  return '<path' + c + ' d="M' + (x - 5.5) + ' ' + (y - 5.5) + 'L' + (x + 5.5) + ' ' + (y + 5.5) + 'M' + (x + 5.5) + ' ' + (y - 5.5) + 'L' + (x - 5.5) + ' ' + (y + 5.5) +
+    '" stroke="' + COL.field + '" stroke-width="2.2" stroke-linecap="round" fill="none"/>';
 }
-function fieldSym(B, x, y) {
-  if (B === "out") return '<circle cx="' + x + '" cy="' + y + '" r="3.6" fill="' + COL.field + '"/>';
-  return line(x - 5.5, y - 5.5, x + 5.5, y + 5.5, COL.field, 2.4) + line(x + 5.5, y - 5.5, x - 5.5, y + 5.5, COL.field, 2.4);
-}
-/* 在區域內畫磁場符號；avoid：[x1,y1,x2,y2,半徑] 線段附近不畫 */
-function fieldGrid(B, rect, avoid) {
-  let s = '<rect x="' + rect[0] + '" y="' + rect[1] + '" width="' + rect[2] + '" height="' + rect[3] + '" fill="' + COL.fieldBg + '"/>';
-  // 網格以畫面中心 (200,150) 對齊、間距 30，讓線圈內的磁場區也有足夠符號
-  for (let x = 5; x < W; x += 30) for (let y = 15; y < H; y += 30) {
+/* 磁場底圖：在區域內「全部」畫滿磁場符號（包括導線、箭頭、電阻下方），之後的圖形都畫在它上面 */
+function fieldGrid(B, rect, grid) {
+  const g = grid || { step:30, x0:20, y0:15 };
+  let s = '<g class="bfield" data-b="' + B + '" data-step="' + g.step + '" data-x0="' + g.x0 + '" data-y0="' + g.y0 + '"><rect x="' + rect[0] + '" y="' + rect[1] + '" width="' + rect[2] + '" height="' + rect[3] + '" fill="' + COL.fieldBg + '"/>';
+  // 預設網格間距 30；x 以畫面中線 200 對齊，讓金屬棒、導軌正下方也有符號（真正的「底圖」）
+  for (let x = g.x0; x < W; x += g.step) for (let y = g.y0; y < H; y += g.step) {
     if (x < rect[0] + 10 || x > rect[0] + rect[2] - 10 || y < rect[1] + 10 || y > rect[1] + rect[3] - 10) continue;
-    if ((avoid || []).some(a => distSeg(x, y, a) < a[4] - 1)) continue;
-    s += fieldSym(B, x, y);
+    s += fieldSym(B, x, y, "bsym");
   }
-  return s;
+  return s + '</g>';
+}
+/* 「電流？」標記：橘色標籤＋指向電阻的尖角；(cx,cy) 標籤中心，tail 為尖角方向 */
+function askTag(cx, cy, tail) {
+  const w = 82, h = 34, [ux, uy] = SV[tail];
+  const ex = cx + ux * (ux ? w / 2 : 0), ey = cy + uy * (uy ? h / 2 : 0);   // 尖角所在的邊中點
+  const tip = [ex + ux * 12, ey + uy * 12], b1 = [ex - uy * 9 - ux * 2, ey + ux * 9 - uy * 2], b2 = [ex + uy * 9 - ux * 2, ey - ux * 9 - uy * 2];
+  return '<g class="iq">' +
+    '<polygon points="' + tip.join(",") + ' ' + b1.join(",") + ' ' + b2.join(",") + '" fill="' + COL.ask + '" stroke="#fff" stroke-width="5" stroke-linejoin="round" paint-order="stroke"/>' +
+    '<rect x="' + (cx - w / 2) + '" y="' + (cy - h / 2) + '" width="' + w + '" height="' + h + '" rx="9" fill="' + COL.ask + '" stroke="#fff" stroke-width="3"/>' +
+    '<polygon points="' + tip.join(",") + ' ' + b1.join(",") + ' ' + b2.join(",") + '" fill="' + COL.ask + '"/>' +
+    '<text x="' + cx + '" y="' + (cy + 1) + '" font-size="21" fill="#fff" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Noto Sans TC, Noto Sans CJK TC, Microsoft JhengHei, sans-serif">電流？</text></g>';
+}
+/* 電阻底下的橘色螢光標示（畫在導線之前） */
+function askHighlight(x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, half = 32;
+  return '<g class="iq-hl">' + line(mx - ux * half, my - uy * half, mx + ux * half, my + uy * half, COL.askHL, 30, 'opacity="0.9"') + '</g>';
 }
 function legendField(B) {
   return '<g transform="translate(0,' + (H + 17) + ')">' + fieldSym(B, 112, 0) +
@@ -554,7 +621,9 @@ function resistor(x1, y1, x2, y2, label, labelOut) {
   let pts = [[x1, y1], [mx - ux * half, my - uy * half]];
   for (let i = 1; i < n; i++) { const t = -half + (2 * half) * i / n, s = (i % 2 ? 1 : -1) * amp; pts.push([mx + ux * t + nx * s, my + uy * t + ny * s]); }
   pts.push([mx + ux * half, my + uy * half], [x2, y2]);
-  let out = '<polyline points="' + pts.map(p => p.join(",")).join(" ") + '" fill="none" stroke="' + COL.wire + '" stroke-width="4" stroke-linejoin="round"/>';
+  const P = pts.map(p => p.join(",")).join(" ");
+  let out = '<g class="fg res"><polyline points="' + P + '" fill="none" stroke="#fff" stroke-width="13" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '<polyline points="' + P + '" fill="none" stroke="' + COL.wire + '" stroke-width="4.5" stroke-linejoin="round"/></g>';
   if (label) out += sym(mx + labelOut[0] * 26, my + labelOut[1] * 26, "R", 24, "#111");
   return out;
 }
@@ -569,7 +638,7 @@ function drawQuestion(p) {
   } catch (e) { return svgWrap(txt(200, 150, "圖形載入失敗", 20)); }
 }
 
-/* 1. 線圈進出磁場（磁場邊界通過線圈中心） */
+/* 1. 線圈進出磁場（磁場邊界通過線圈中心；磁場只畫在磁場區內，當底圖） */
 function draw1(p) {
   const cx = 200, cy = 150, h = 62;
   const rect = { right:[cx, 0, W - cx, H], left:[0, 0, cx, H], up:[0, 0, W, cy], down:[0, cy, W, H - cy] }[p.region];
@@ -580,69 +649,66 @@ function draw1(p) {
   let av;
   if (vx) { const oy = (p.R === "bottom") ? cy - h - 34 : cy + h + 34; av = [cx - vx * 40, oy, cx + vx * 40, oy]; }
   else { const ox = (p.R === "right") ? cx - h - 34 : cx + h + 34; av = [ox, cy - vy * 40, ox, cy + vy * 40]; }
-  const avoid = Object.values(sides).map(s => [s[0][0], s[0][1], s[1][0], s[1][1], 13]);
-  avoid.push([...av, 18], [av[2] + vx * 16 + (vy ? 18 : 0), av[3] + vy * 16 + (vx ? -14 : 0), av[2], av[3], 16]);
-  const rm = [(sides[p.R][0][0] + sides[p.R][1][0]) / 2, (sides[p.R][0][1] + sides[p.R][1][1]) / 2];
-  avoid.push([rm[0], rm[1], rm[0], rm[1], 34]);
   const lo = SV[SIDE_DIR[p.R]];
-  avoid.push([rm[0] + lo[0] * 28, rm[1] + lo[1] * 28, rm[0] + lo[0] * 28, rm[1] + lo[1] * 28, 22]);
-  let s = fieldGrid(p.B, rect, avoid);
+  const rm = [(sides[p.R][0][0] + sides[p.R][1][0]) / 2, (sides[p.R][0][1] + sides[p.R][1][1]) / 2];
+  // 間距 25、與磁場邊界錯開半格：線圈四邊正好壓在符號列上，線圈內的磁場區有 2 排完整符號
+  let s = fieldGrid(p.B, rect, { step:25, x0:12.5, y0:12.5 });
   // 磁場邊界
-  if (p.region === "left" || p.region === "right") s += line(cx, 0, cx, H, COL.field, 2, 'stroke-dasharray="8 6"');
-  else s += line(0, cy, W, cy, COL.field, 2, 'stroke-dasharray="8 6"');
+  if (p.region === "left" || p.region === "right") s += line(cx, 0, cx, H, COL.field, 2.5, 'stroke-dasharray="8 6"');
+  else s += line(0, cy, W, cy, COL.field, 2.5, 'stroke-dasharray="8 6"');
+  s += askHighlight(sides[p.R][0][0], sides[p.R][0][1], sides[p.R][1][0], sides[p.R][1][1]);
   for (const k of ["top","right","bottom","left"]) {
     const [a, b] = sides[k];
-    s += k === p.R ? resistor(a[0], a[1], b[0], b[1], true, lo) : line(a[0], a[1], b[0], b[1], COL.wire, 4);
+    s += k === p.R ? resistor(a[0], a[1], b[0], b[1], true, lo) : wire(a[0], a[1], b[0], b[1], COL.wire, 4.5);
   }
   s += arrow(av[0], av[1], av[2], av[3], COL.v, 5, 18) + sym(av[2] + vx * 16 + (vy ? 18 : 0), av[3] + vy * 16 + (vx ? -14 : 0), "v", 26, COL.v);
+  // 「電流？」：在 R 的外側，順序為 電流？→ R → 電阻
+  s += askTag(rm[0] + lo[0] * 90, rm[1] + lo[1] * 66, OPP_DIR[SIDE_DIR[p.R]]);
   return svgWrap(s + legendField(p.B));
 }
 
-/* 2. 金屬棒在導軌上滑動（磁場遍布整個區域） */
+/* 2. 金屬棒在導軌上滑動（磁場遍布整個區域，當底圖） */
 function draw2(p) {
-  let wires = "", avoid = [], rod, R, rodC;
+  let wires = "", rod, R, rodC, tag, hl;
   if (p.rails === "h") {
     const y1 = 85, y2 = 215, rx = p.R === "left" ? 45 : 355, far = p.R === "left" ? 392 : 8, xr = p.R === "left" ? 250 : 150;
-    wires += line(rx, y1, far, y1, COL.wire, 4) + line(rx, y2, far, y2, COL.wire, 4);
+    wires += wire(rx, y1, far, y1, COL.wire, 4.5) + wire(rx, y2, far, y2, COL.wire, 4.5);
     R = resistor(rx, y1, rx, y2, true, [p.R === "left" ? -1 : 1, 0]);
-    rod = line(xr, y1 - 16, xr, y2 + 16, "#546e7a", 10);
+    hl = askHighlight(rx, y1, rx, y2);
+    rod = wire(xr, y1 - 16, xr, y2 + 16, "#546e7a", 10);
     rodC = [xr, 150];
-    avoid.push([rx, y1, far, y1, 13], [rx, y2, far, y2, 13], [rx, y1, rx, y2, 20], [xr, y1 - 16, xr, y2 + 16, 16], [rx + (p.R === "left" ? -26 : 26), 150, rx + (p.R === "left" ? -26 : 26), 150, 20]);
+    tag = askTag(rx + (p.R === "left" ? 60 : -60), 150, p.R === "left" ? "left" : "right");
   } else {
-    const x1 = 140, x2 = 260, ry = p.R === "top" ? 48 : 252, far = p.R === "top" ? 296 : 4, yr = p.R === "top" ? 195 : 105;
-    wires += line(x1, ry, x1, far, COL.wire, 4) + line(x2, ry, x2, far, COL.wire, 4);
+    const x1 = 140, x2 = 260, ry = p.R === "top" ? 48 : 252, far = p.R === "top" ? 296 : 4, yr = p.R === "top" ? 205 : 95;
+    wires += wire(x1, ry, x1, far, COL.wire, 4.5) + wire(x2, ry, x2, far, COL.wire, 4.5);
     R = resistor(x1, ry, x2, ry, true, [0, p.R === "top" ? -1 : 1]);
-    rod = line(x1 - 16, yr, x2 + 16, yr, "#546e7a", 10);
+    hl = askHighlight(x1, ry, x2, ry);
+    rod = wire(x1 - 16, yr, x2 + 16, yr, "#546e7a", 10);
     rodC = [200, yr];
-    avoid.push([x1, ry, x1, far, 13], [x2, ry, x2, far, 13], [x1, ry, x2, ry, 20], [x1 - 16, yr, x2 + 16, yr, 16], [200, ry + (p.R === "top" ? -26 : 26), 200, ry + (p.R === "top" ? -26 : 26), 20]);
+    tag = askTag(200, ry + (p.R === "top" ? 37 : -37), p.R === "top" ? "up" : "down");
   }
   const [vx, vy] = SV[p.v];
   // 速度箭頭畫在棒的旁邊（避免與棒重疊）
   let a0, a1;
   if (p.rails === "h") { a0 = [rodC[0] + vx * 14, 150]; a1 = [rodC[0] + vx * 84, 150]; }
-  else { a0 = [rodC[0], rodC[1] + vy * 14]; a1 = [rodC[0], rodC[1] + vy * 84]; }
-  avoid.push([a0[0], a0[1], a1[0], a1[1], 18], [a1[0] + vx * 14 + (vy ? 18 : 0), a1[1] + vy * 14 + (vx ? -18 : 0), a1[0], a1[1], 16]);
-  let s = fieldGrid(p.B, [0, 0, W, H], avoid) + wires + R + rod +
-    arrow(a0[0], a0[1], a1[0], a1[1], COL.v, 5, 18) + sym(a1[0] + (vy ? 18 : 0), a1[1] + (vx ? -18 : 0), "v", 24, COL.v);
+  else { a0 = [rodC[0], rodC[1] + vy * 14]; a1 = [rodC[0], rodC[1] + vy * 74]; }
+  let s = fieldGrid(p.B, [0, 0, W, H]) + hl + wires + R + rod +
+    arrow(a0[0], a0[1], a1[0], a1[1], COL.v, 5, 18) + sym(a1[0] + (vy ? 18 : 0), a1[1] + (vx ? -18 : 0), "v", 24, COL.v) + tag;
   return svgWrap(s + legendField(p.B));
 }
 
-/* 3. 單根金屬棒切割磁場 */
+/* 3. 單根金屬棒切割磁場（磁場底圖） */
 function draw3(p) {
-  let s, avoid = [];
+  let s;
   const [vx, vy] = SV[p.v];
   if (p.rod === "v") {
-    avoid.push([200, 75, 200, 225, 18], [200, 52, 200, 52, 18], [200, 248, 200, 248, 18]);
     const a1 = [200 + vx * 90, 150];
-    avoid.push([200 + vx * 12, 150, a1[0], 150, 18], [a1[0], 132, a1[0], 132, 16]);
-    s = fieldGrid(p.B, [0, 0, W, H], avoid) + line(200, 75, 200, 225, "#546e7a", 10) +
+    s = fieldGrid(p.B, [0, 0, W, H]) + wire(200, 75, 200, 225, "#546e7a", 10) +
       sym(200, 52, "a", 26, "#111") + sym(200, 250, "b", 26, "#111") +
       arrow(200 + vx * 12, 150, a1[0], 150, COL.v, 5, 18) + sym(a1[0], 130, "v", 24, COL.v);
   } else {
-    avoid.push([120, 150, 280, 150, 18], [98, 150, 98, 150, 18], [302, 150, 302, 150, 18]);
     const a1 = [200, 150 + vy * 90];
-    avoid.push([200, 150 + vy * 12, 200, a1[1], 18], [220, a1[1], 220, a1[1], 16]);
-    s = fieldGrid(p.B, [0, 0, W, H], avoid) + line(120, 150, 280, 150, "#546e7a", 10) +
+    s = fieldGrid(p.B, [0, 0, W, H]) + wire(120, 150, 280, 150, "#546e7a", 10) +
       sym(98, 150, "a", 26, "#111") + sym(302, 150, "b", 26, "#111") +
       arrow(200, 150 + vy * 12, 200, a1[1], COL.v, 5, 18) + sym(222, a1[1], "v", 24, COL.v);
   }
@@ -723,8 +789,10 @@ function draw4coil(p) {
   const mx0 = p.mside === "left" ? 18 : 262, mx1 = mx0 + 120;
   s += magnet(mx0, mx1, yc, p.mside === "left", p.face);
   s += hx.svg;
+  s += askHighlight(hx.start[0], yb, hx.end[0], yb);
   s += line(hx.start[0], hx.start[1], hx.start[0], yb, COL.wire, 4) + line(hx.end[0], hx.end[1], hx.end[0], yb, COL.wire, 4);
-  s += resistor(hx.start[0], yb, hx.end[0], yb, true, [0, -1]);
+  s += resistor(hx.start[0], yb, hx.end[0], yb, false) + sym((hx.start[0] + hx.end[0]) / 2, 288, "R", 24, "#111");
+  s += askTag((hx.start[0] + hx.end[0]) / 2, yb - 39, "down");
   const [vx] = SV[p.v];
   if (p.mover === "magnet") {
     const c = (mx0 + mx1) / 2;
