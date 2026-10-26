@@ -524,7 +524,7 @@ function distSeg(px, py, s) {
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 function fieldSym(B, x, y) {
-  if (B === "out") return '<circle cx="' + x + '" cy="' + y + '" r="6.8" fill="#fff" stroke="' + COL.field + '" stroke-width="2"/><circle cx="' + x + '" cy="' + y + '" r="2.6" fill="' + COL.field + '"/>';
+  if (B === "out") return '<circle cx="' + x + '" cy="' + y + '" r="3.6" fill="' + COL.field + '"/>';
   return line(x - 5.5, y - 5.5, x + 5.5, y + 5.5, COL.field, 2.4) + line(x + 5.5, y - 5.5, x - 5.5, y + 5.5, COL.field, 2.4);
 }
 /* 在區域內畫磁場符號；avoid：[x1,y1,x2,y2,半徑] 線段附近不畫 */
