@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>電磁感應・方向快打</title>
+<title>電流磁效應&amp;電磁感應</title>
 <style>
   :root { --main:#283593; --main2:#3949ab; --ok:#2e7d32; --bad:#c62828; --bg:#eef1f8; --warn:#ef6c00; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -145,7 +145,7 @@
 </style>
 </head>
 <body>
-<header><h1>電磁感應・方向快打</h1><div class="who" id="who"></div></header>
+<header><h1>電流磁效應&amp;電磁感應</h1><div class="who" id="who"></div></header>
 <main>
   <!-- 登入 -->
   <section id="loginView">
@@ -425,7 +425,7 @@ function renderOptions(options) {
   const ks = options.map(o => o.k);
   const dirs = ks.every(k => ["up","down","left","right"].includes(k));
   const cmp = ks.every(k => ["north","south","west","east"].includes(k));
-  $("keyHint").textContent = dirs ? "電腦可用鍵盤方向鍵 ↑ ↓ ← → 作答" : cmp ? "電腦可用鍵盤方向鍵作答：↑北 ↓南 ←西 →東" : "電腦可用鍵盤 ← 選左邊、→ 選右邊";
+  $("keyHint").textContent = dirs ? "電腦可用鍵盤方向鍵 ↑ ↓ ← → 作答" : cmp ? "電腦可用鍵盤方向鍵作答：↑北 ↓南 ←西 →東" : "電腦可用鍵盤 ↑ 選上面、↓ 選下面";
 }
 
 function tick() {
@@ -565,8 +565,8 @@ document.addEventListener("keydown", (e) => {
   if (dir && ks.includes(dir)) return choose(dir);
   if (dir && ks.includes(COMPASS_KEY[dir])) return choose(COMPASS_KEY[dir]);
   if (ks.length === 2) {
-    if (dir === "left" || e.key === "1") return choose(ks[0]);
-    if (dir === "right" || e.key === "2") return choose(ks[1]);
+    if (dir === "up" || dir === "left" || e.key === "1") return choose(ks[0]);
+    if (dir === "down" || dir === "right" || e.key === "2") return choose(ks[1]);
   }
 });
 
@@ -648,6 +648,7 @@ function txt(x, y, s, size, color, anchor, weight) {
   return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 22) + '" fill="' + (color || "#222") + '" text-anchor="' + (anchor || "middle") +
     '" dominant-baseline="central" font-weight="' + (weight || "bold") + '" font-family="Noto Sans TC, Noto Sans CJK TC, Microsoft JhengHei, sans-serif" stroke="#fff" stroke-width="6" stroke-linejoin="round" paint-order="stroke">' + s + '</text>';
 }
+function markPt(x, y) { return '<path d="M' + (x - 9) + ' ' + y + 'H' + (x + 9) + 'M' + x + ' ' + (y - 9) + 'V' + (y + 9) + '" stroke="#444" stroke-width="2.5" stroke-linecap="round"/>'; }
 function sym(x, y, s, size, color) {   // 物理量符號（斜體）
   return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 26) + '" fill="' + (color || "#111") + '" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-style="italic" font-family="Times New Roman, Noto Serif, Noto Serif CJK TC, serif" stroke="#fff" stroke-width="6" stroke-linejoin="round" paint-order="stroke">' + s + '</text>';
 }
@@ -933,11 +934,11 @@ function draw5(p) {
     if (p.orient === "v") {
       const px = p.P === "right" ? 310 : 90;
       s += line(200, 15, 200, 285, COL.wire, 5) + arrowHead(200, 100, p.I, COL.I, 26) + sym(226, 100, "I", 26, COL.I);
-      s += '<circle cx="' + px + '" cy="160" r="7" fill="#111"/>' + sym(px, 190, "P", 26, "#111");
+      s += markPt(px, 160) + sym(px, 190, "P", 26, "#111");
     } else {
       const py = p.P === "up" ? 60 : 240;
       s += line(15, 150, 385, 150, COL.wire, 5) + arrowHead(110, 150, p.I, COL.I, 26) + sym(110, 124, "I", 26, COL.I);
-      s += '<circle cx="230" cy="' + py + '" r="7" fill="#111"/>' + sym(258, py, "P", 26, "#111");
+      s += markPt(230, py) + sym(258, py, "P", 26, "#111");
     }
     return svgWrap(s + legendText("導線在紙面上"));
   }
@@ -951,7 +952,7 @@ function draw5(p) {
       s += '<circle cx="' + px + '" cy="' + py + '" r="24" fill="#fffde7" stroke="#555" stroke-width="3"/>' + txt(px, py, "?", 24, "#555");
       s += sym(lx + (dx === 0 ? 22 : 0), ly + (dx !== 0 ? 8 : 0), "P", 24, "#111");
     } else {
-      s += '<circle cx="' + px + '" cy="' + py + '" r="7" fill="#111"/>' + sym(lx, ly, "P", 26, "#111");
+      s += markPt(px, py) + sym(lx, ly, "P", 26, "#111");
     }
     return svgWrap(s + legendText(p.I === "out" ? "⊙ 表示電流垂直穿出紙面" : "⊗ 表示電流垂直穿入紙面"));
   }
@@ -961,8 +962,8 @@ function draw5(p) {
     // 箭頭：逆時針（畫面上）在頂端向左、底端向右
     const topDir = p.I === "ccw" ? "left" : "right", botDir = p.I === "ccw" ? "right" : "left";
     s += arrowHead(cx, cy - r, topDir, COL.I, 26) + arrowHead(cx, cy + r, botDir, COL.I, 26) + sym(cx + 34, cy - r - 4, "I", 26, COL.I);
-    if (p.at === "center") s += '<circle cx="' + cx + '" cy="' + cy + '" r="7" fill="#111"/>' + sym(cx + 24, cy + 14, "O", 24, "#111");
-    else s += '<circle cx="335" cy="' + cy + '" r="7" fill="#111"/>' + sym(358, cy + 4, "P", 26, "#111");
+    if (p.at === "center") s += markPt(cx, cy) + sym(cx + 22, cy + 22, "O", 24, "#111");
+    else s += markPt(335, cy) + sym(358, cy + 4, "P", 26, "#111");
     return svgWrap(s + legendText("線圈在紙面上"));
   }
   // sol：螺線管＋電池
