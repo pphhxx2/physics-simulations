@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D 眼球成像模擬 - 視網膜透明度可調版</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111; font-family: '微軟正黑體', sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #eef2f7; color: #1f2933; font-family: '微軟正黑體', sans-serif; }
         #canvas-container { width: 100vw; height: 100vh; }
         
         /* UI 介面樣式 */
@@ -14,17 +14,17 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(30, 30, 30, 0.9);
+            background: rgba(255, 255, 255, 0.94);
             padding: 20px;
             border-radius: 12px;
-            border: 1px solid #444;
+            border: 1px solid #b8c2cf;
             display: flex;
             flex-direction: row;
             gap: 25px;
             align-items: center;
             justify-content: center;
-            color: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            color: #1f2933;
+            box-shadow: 0 4px 15px rgba(31,41,51,0.18);
             width: 90%;
             max-width: 800px;
             z-index: 10;
@@ -35,8 +35,9 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #eee;
-            background: rgba(0, 0, 0, 0.6);
+            color: #1f2933;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid #c5cdd8;
             padding: 15px;
             border-radius: 8px;
             pointer-events: none;
@@ -63,10 +64,10 @@
             width: 240px; 
             height: 240px;
             background: transparent; /* 改為透明，避免遮擋 WebGL 背景 */
-            border: 2px solid #4db8ff; 
+            border: 2px solid #1976d2; 
             border-radius: 8px;
             z-index: 20;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            box-shadow: 0 4px 20px rgba(31,41,51,0.25);
             display: flex;
             flex-direction: column;
             pointer-events: auto;
@@ -74,22 +75,26 @@
         
         .mag-header {
             padding: 8px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(255,255,255,0.95);
+            border-bottom: 1px solid #c5cdd8;
             border-top-left-radius: 6px;
             border-top-right-radius: 6px;
             text-align: center;
         }
-        .mag-header h3 { margin: 0 0 5px 0; font-size: 14px; color: #4db8ff; }
+        .mag-header h3 { margin: 0 0 5px 0; font-size: 14px; color: #0b5cad; }
         
         .zoom-control {
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-size: 12px;
-            color: #ccc;
+            color: #374151;
             padding: 0 5px;
         }
         .zoom-control input { width: 60%; margin: 0; cursor: pointer; }
+
+        /* 3D 特寫的繪製區（WebGL 以此區塊的實際位置/大小為視埠） */
+        #mag-view { flex: 1; min-height: 0; pointer-events: none; }
 
         /* 左側控制區 */
         .left-controls {
@@ -98,7 +103,7 @@
             gap: 15px;
             align-items: center;
             min-width: 200px;
-            border-right: 1px solid #555;
+            border-right: 1px solid #c5cdd8;
             padding-right: 20px;
             position: relative;
             z-index: 1; 
@@ -111,6 +116,11 @@
             width: 100%;
         }
 
+        .nav-group { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+        .nav-group button { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        .nav-group .zoom-btn { flex: 0 0 38px; padding: 8px 0; font-size: 16px; line-height: 1; }
+        .nav-group .reset-btn { flex: 1; white-space: nowrap; }
+
         .btn-row {
             display: flex;
             gap: 5px;
@@ -118,21 +128,22 @@
         }
 
         button {
-            background: #444;
-            color: white;
+            background: #e3e8ef;
+            color: #1f2933;
             border: none;
             padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
             transition: 0.3s;
-            border: 1px solid #555;
+            border: 1px solid #b8c2cf;
             flex: 1;
         }
 
-        button:hover { background: #555; }
+        button:hover { background: #d3dae4; }
         
         button.active {
+            color: white;
             background: #007bff;
             border-color: #0056b3;
             font-weight: bold;
@@ -177,14 +188,14 @@
             display: flex;
             justify-content: space-between;
             font-size: 14px;
-            color: #ccc;
+            color: #374151;
         }
         
         .slider-marks {
             display: flex;
             justify-content: space-between;
             font-size: 12px;
-            color: #888;
+            color: #5f6b7a;
             margin-top: -3px;
         }
 
@@ -192,10 +203,10 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.04);
             padding: 5px 10px;
             border-radius: 20px;
-            border: 1px solid #555;
+            border: 1px solid #b8c2cf;
             width: 100%;
             box-sizing: border-box;
             justify-content: center;
@@ -212,7 +223,7 @@
             position: absolute;
             cursor: pointer;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #555;
+            background-color: #aab4c2;
             transition: .4s;
             border-radius: 20px;
         }
@@ -235,7 +246,7 @@
             cursor: pointer;
             -webkit-appearance: none; 
             height: 6px;
-            background: #444;
+            background: #cbd5e1;
             border-radius: 3px;
             outline: none;
         }
@@ -251,14 +262,67 @@
             margin-top: 0px; 
         }
         
+
+        /* ---- 控制面板收合 / 展開 ---- */
+        #ui-panel { transition: gap .3s ease, padding .3s ease; }
+        .panel-extra, .slider-wrap {
+            display: grid;
+            grid-template-rows: 1fr;
+            transition: grid-template-rows .3s ease, opacity .25s ease, margin .3s ease;
+        }
+        .panel-extra { width: 100%; margin-bottom: 15px; }
+        .panel-extra-inner { min-height: 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        .slider-wrap { flex: 1; width: 100%; }
+        .slider-wrap > .slider-group { min-height: 0; }
+        /* 動畫期間與收合時才裁切內容（展開靜止時不裁切，讓遠視模式的滑桿可往左延伸） */
+        #ui-panel.animating .panel-extra-inner, #ui-panel.animating .slider-wrap > .slider-group,
+        #ui-panel.collapsed .panel-extra-inner, #ui-panel.collapsed .slider-wrap > .slider-group { overflow: hidden; }
+        #ui-panel.collapsed .panel-extra, #ui-panel.collapsed .slider-wrap { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+        #ui-panel.collapsed .panel-extra { margin-bottom: 0; }
+        #ui-panel.collapsed { gap: 0; }
+        #ui-panel.collapsed .left-controls { min-width: 0; border-right-color: transparent; padding-right: 0; border-bottom-color: transparent; padding-bottom: 0; gap: 0; }
+        #ui-panel.collapsed .slider-wrap { flex: 0 0 0; width: 0; }
+        #ui-panel.collapsed .nav-group { flex-direction: row; gap: 5px; }
+        #ui-panel.collapsed .nav-group .btn-row { flex: 1 1 auto; }
+
+        #panel-toggle {
+            position: absolute;
+            left: 50%;
+            bottom: 200px;           /* 由 JS 依面板上緣即時定位 */
+            transform: translateX(-50%);
+            z-index: 11;
+            flex: none;
+            padding: 4px 16px;
+            font-size: 12px;
+            border-radius: 8px 8px 0 0;
+            border: 1px solid #b8c2cf;
+            border-bottom: none;
+            background: rgba(255, 255, 255, 0.96);
+            color: #1f2933;
+            cursor: pointer;
+            touch-action: manipulation;
+            box-shadow: 0 -2px 6px rgba(31,41,51,0.12);
+        }
+        #panel-toggle:hover { background: #e3e8ef; }
+
         @media (max-width: 800px) {
             #ui-panel { width: 95%; gap: 15px; }
             #magnifier-container { width: 180px; height: 180px; }
         }
         @media (max-width: 600px) {
-            #ui-panel { flex-direction: column; gap: 15px; bottom: 10px; }
-            .left-controls { border-right: none; border-bottom: 1px solid #555; padding-bottom: 15px; padding-right: 0; width: 100%; }
+            #ui-panel { flex-direction: column; gap: 10px; bottom: 10px; box-sizing: border-box; padding: 12px 14px; }
+            .left-controls { gap: 0; }
+            .panel-extra { margin-bottom: 8px; }
+            .panel-extra-inner { gap: 8px; }
+            .slider-group { gap: 8px; }
+            .nav-group { flex-direction: row; gap: 5px; }
+            .nav-group .btn-row { flex: 1 1 auto; }
+            .nav-group .zoom-btn { flex: 0 0 34px; }
+            .nav-group button { padding: 8px 6px; font-size: 13px; white-space: nowrap; }
+            .left-controls { border-right: none; border-bottom: 1px solid #c5cdd8; padding-bottom: 10px; padding-right: 0; width: 100%; }
             #magnifier-container { top: 10px; right: 10px; width: 160px; height: 160px; }
+            #info-overlay { top: 10px; left: 10px; padding: 10px; max-width: calc(100vw - 205px); }
+            #status-text { font-size: 18px; }
             .slider-container.hyperopia-mode { width: 100%; margin-left: 0; }
         }
     </style>
@@ -276,11 +340,11 @@
 
     <div id="info-overlay">
         <span id="status-text">正常聚焦(清晰)</span>
-        <div style="margin-top: 15px; border-top: 1px solid #555; padding-top: 10px;">
-            <div class="legend"><span class="dot" style="background:#ff3333"></span> 實體物件</div>
-            <div class="legend"><span class="dot" style="background:#00ffff;"></span> 頂部光線 (青)</div>
-            <div class="legend"><span class="dot" style="background:#ff8800;"></span> 底部光線 (橘)</div>
-            <div class="legend"><span class="dot" style="background:#ffff00;"></span> 實像匯聚 (黃)</div>
+        <div style="margin-top: 15px; border-top: 1px solid #c5cdd8; padding-top: 10px;">
+            <div class="legend"><span class="dot" style="background:#dd2222"></span> 實體物件</div>
+            <div class="legend"><span class="dot" style="background:#0088aa;"></span> 頂部光線 (青)</div>
+            <div class="legend"><span class="dot" style="background:#e65100;"></span> 底部光線 (橘)</div>
+            <div class="legend"><span class="dot" style="background:#c08a00;"></span> 實像匯聚 (黃)</div>
         </div>
     </div>
 
@@ -294,10 +358,12 @@
                 <span>50x</span>
             </div>
         </div>
+        <div id="mag-view"></div>
     </div>
 
     <div id="ui-panel">
         <div class="left-controls">
+          <div class="panel-extra"><div class="panel-extra-inner">
             <div class="btn-group">
                 <div class="btn-row">
                     <button onclick="setMode('normal')" id="btn-normal" class="active">正常</button>
@@ -311,11 +377,25 @@
                     <input type="checkbox" id="auto-focus" checked>
                     <span class="slider-toggle"></span>
                 </label>
-                <span style="font-size: 14px; color: #eee;">自動對焦</span>
+                <span style="font-size: 14px; color: #1f2933;">自動對焦</span>
+            </div>
+          </div></div>
+
+            <!-- 視角操作模式：單指/左鍵拖曳 = 轉動 或 平移 -->
+            <div class="nav-group" role="group" aria-label="視角操作模式">
+                <div class="btn-row">
+                    <button type="button" onclick="setNavMode('rotate')" id="btn-nav-rotate" class="active" title="按住拖曳：轉動視角">⟳ 轉動</button>
+                    <button type="button" onclick="setNavMode('pan')" id="btn-nav-pan" title="按住拖曳：平移視角">✥ 平移</button>
+                </div>
+                <div class="btn-row">
+                    <button type="button" id="btn-zoom-out" class="zoom-btn" aria-label="縮小" title="縮小（可按住連續縮小）">－</button>
+                    <button type="button" id="btn-zoom-in" class="zoom-btn" aria-label="放大" title="放大（可按住連續放大）">＋</button>
+                    <button type="button" id="btn-view-reset" class="reset-btn" title="恢復預設視角">↺ 重置視角</button>
+                </div>
             </div>
         </div>
         
-        <div class="slider-group">
+        <div class="slider-wrap"><div class="slider-group">
             <div class="slider-container" id="dist-slider-container">
                 <div class="slider-label">
                     <span>物體距離</span>
@@ -352,8 +432,11 @@
                     <span>清晰不透明 →</span>
                 </div>
             </div>
-        </div>
+        </div></div>
     </div>
+
+    <!-- 控制面板收合/展開：位於面板上緣的小頁籤 -->
+    <button type="button" id="panel-toggle" aria-controls="ui-panel" aria-expanded="true" title="收合/展開控制面板">▼ 收合</button>
 
     <div id="canvas-container"></div>
 
@@ -378,8 +461,8 @@
     
     let currentRetinaX = NORMAL_RETINA_X;
     
-    const COLOR_TOP = 0x00ffff; 
-    const COLOR_BOT = 0xff8800; 
+    const COLOR_TOP = 0x0088aa; 
+    const COLOR_BOT = 0xe65100; 
 
     const BASE_THICKNESS = 0.2; 
     const MAX_THICKNESS = 0.32; 
@@ -404,7 +487,7 @@
         const container = document.getElementById('canvas-container');
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050505);
+        scene.background = new THREE.Color(0xf4f7fb);
 
         camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 2, 20); 
@@ -420,6 +503,10 @@
         controls = new OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 0, 0); 
         controls.enableDamping = true;
+        controls.minDistance = 3;   // 縮放範圍（滾輪與按鈕共用）
+        controls.maxDistance = 60;
+        // 預設「轉動」模式：左鍵/單指 = 轉動；右鍵/兩指 = 平移（Shift+左鍵亦可平移）
+        applyNavMode('rotate');
 
         const ambientLight = new THREE.AmbientLight(0x404040, 2);
         scene.add(ambientLight);
@@ -493,6 +580,8 @@
             }
         });
 
+        setupViewButtons();
+        setupPanelToggle();
         animate();
         updateSimulation();
     }
@@ -524,12 +613,36 @@
         else if(val < 45) text = "稍薄";
         
         if (currentMode === 'myopia' && val <= minSliderValue && val > 1) {
-             text += " <span style='color:#ff5555'>(調節極限)</span>";
+             text += " <span style='color:#d32f2f'>(調節極限)</span>";
         }
         if (currentMode === 'hyperopia' && val >= 99) {
-             text += " <span style='color:#ff5555'>(已達調節極限)</span>";
+             text += " <span style='color:#d32f2f'>(已達調節極限)</span>";
         }
         document.getElementById('lens-val').innerHTML = text;
+    }
+
+    // 以線段建立球面經緯線（極軸沿光軸 X：從側面看＝一圈圈緯線＋弧形經線，形狀易讀）
+    function createLatLongGeometry(radius, meridians, parallels, seg) {
+        const pts = [];
+        const P = (lat, lon) => new THREE.Vector3(
+            radius * Math.sin(lat),                    // 極軸沿 X（光軸方向）
+            radius * Math.cos(lat) * Math.cos(lon),
+            radius * Math.cos(lat) * Math.sin(lon));
+        for (let m = 0; m < meridians; m++) {
+            const lon = (m / meridians) * Math.PI * 2;
+            for (let i = 0; i < seg; i++) {
+                const a = -Math.PI / 2 + (i / seg) * Math.PI;
+                const b = -Math.PI / 2 + ((i + 1) / seg) * Math.PI;
+                pts.push(P(a, lon), P(b, lon));
+            }
+        }
+        for (let k = 1; k <= parallels; k++) {
+            const lat = -Math.PI / 2 + (k / (parallels + 1)) * Math.PI;
+            for (let i = 0; i < seg; i++) {
+                pts.push(P(lat, (i / seg) * Math.PI * 2), P(lat, ((i + 1) / seg) * Math.PI * 2));
+            }
+        }
+        return new THREE.BufferGeometry().setFromPoints(pts);
     }
 
     function createEye() {
@@ -539,21 +652,20 @@
         const defaultRadius = (NORMAL_RETINA_X - LENS_X) / 2 + 0.5;
         const defaultCenter = (LENS_X + NORMAL_RETINA_X) / 2;
 
-        const eyeGeo = new THREE.SphereGeometry(defaultRadius, 32, 24, 0, Math.PI * 2, 0, Math.PI);
-        const eyeMat = new THREE.MeshBasicMaterial({ 
-            color: 0x666666, 
-            wireframe: true,
+        // 眼球外框：乾淨的經緯線（16 條經線 × 9 條緯線），不含三角形斜線；僅示意形狀，刻意畫得淡
+        const eyeGeo = createLatLongGeometry(defaultRadius, 16, 9, 64);
+        const eyeMat = new THREE.LineBasicMaterial({ 
+            color: 0x8696a8, 
             transparent: true,
-            opacity: 0.05 
+            opacity: 0.38 
         });
-        eyeSphere = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeSphere.rotation.x = -Math.PI / 2;
+        eyeSphere = new THREE.LineSegments(eyeGeo, eyeMat);
         eyeSphere.position.set(defaultCenter, 0, 0);
         eyeGroup.add(eyeSphere);
 
         const lensGeo = new THREE.SphereGeometry(1.2, 32, 16);
         const lensMat = new THREE.MeshPhongMaterial({ 
-            color: 0x88ccff, 
+            color: 0x3b8fd6, 
             transparent: true, 
             opacity: 0.5,
             shininess: 90
@@ -565,7 +677,7 @@
 
         const retinaGeo = new THREE.CircleGeometry(3.0, 32);
         const retinaMat = new THREE.MeshBasicMaterial({ 
-            color: 0x111111, 
+            color: 0x6a1b9a, 
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.3, // 預設透明度為 30%
@@ -574,15 +686,21 @@
         retinaMesh = new THREE.Mesh(retinaGeo, retinaMat);
         retinaMesh.rotation.y = -Math.PI / 2;
         retinaMesh.position.set(NORMAL_RETINA_X, 0, 0);
+        // 視網膜邊緣環（較醒目，隨視網膜位置移動）
+        const retinaEdge = new THREE.Mesh(
+            new THREE.RingGeometry(2.92, 3.0, 64),
+            new THREE.MeshBasicMaterial({ color: 0x6a1b9a, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false })
+        );
+        retinaMesh.add(retinaEdge);
         eyeGroup.add(retinaMesh);
 
         const shape = new THREE.Shape(arrowShapePoints);
         const geometry = new THREE.ShapeGeometry(shape);
         const realImageMat = new THREE.MeshBasicMaterial({ 
-            color: 0xffff00, 
+            color: 0xc08a00, 
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.8
+            opacity: 1.0
         });
         realImageArrow = new THREE.Mesh(geometry, realImageMat);
         realImageArrow.position.set(0, 0, 0);
@@ -594,7 +712,7 @@
         const shape = new THREE.Shape(arrowShapePoints);
         const extrudeSettings = { depth: 0.1, bevelEnabled: false };
         const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        const material = new THREE.MeshPhongMaterial({ color: 0xff3333 });
+        const material = new THREE.MeshPhongMaterial({ color: 0xdd2222 });
         
         objectArrow = new THREE.Mesh(geometry, material);
         objectArrow.scale.set(0.5, 0.5, 0.5); 
@@ -606,16 +724,15 @@
         const geometry = new THREE.ShapeGeometry(shape); 
         
         const ghostMat = new THREE.MeshBasicMaterial({ 
-            color: 0x00ff00, 
+            color: 0x0f8a2c, 
             transparent: true, 
-            opacity: 0.25, 
+            opacity: 0.9, 
             side: THREE.DoubleSide,
-            depthWrite: false, 
-            blending: THREE.AdditiveBlending 
+            depthWrite: false 
         });
 
-        const lineMatTop = new THREE.LineBasicMaterial({ color: COLOR_TOP, transparent: true, opacity: 0.4 });
-        const lineMatBot = new THREE.LineBasicMaterial({ color: COLOR_BOT, transparent: true, opacity: 0.4 });
+        const lineMatTop = new THREE.LineBasicMaterial({ color: COLOR_TOP, transparent: true, opacity: 0.8 });
+        const lineMatBot = new THREE.LineBasicMaterial({ color: COLOR_BOT, transparent: true, opacity: 0.8 });
 
         for(let i=0; i<3; i++) {
             const ghost = new THREE.Mesh(geometry, ghostMat.clone());
@@ -716,11 +833,11 @@
         const threshold = 0.25;
 
         if (Math.abs(diff) < threshold) {
-            statusHtml = '<span style="color:#00ff00">⭕ 正常聚焦 (清晰)</span>';
+            statusHtml = '<span style="color:#138a2e">⭕ 正常聚焦 (清晰)</span>';
         } else if (diff < -threshold) {
-            statusHtml = '<span style="color:#ff3333">❌ 過早聚焦 (模糊)</span>';
+            statusHtml = '<span style="color:#d32f2f">❌ 過早聚焦 (模糊)</span>';
         } else {
-            statusHtml = '<span style="color:#ff3333">❌ 太晚聚焦 (模糊)</span>';
+            statusHtml = '<span style="color:#d32f2f">❌ 太晚聚焦 (模糊)</span>';
         }
         
         title.innerHTML = statusHtml;
@@ -730,6 +847,83 @@
         if(currentMode === 'normal') return "正常模式";
         if(currentMode === 'myopia') return "近視模式";
         if(currentMode === 'hyperopia') return "遠視模式";
+    }
+
+    // 視角操作模式：以 OrbitControls 的 mouseButtons / touches 設定切換
+    // （OrbitControls 內建：按住 Shift/Ctrl/Meta 拖曳時，左鍵會改成相反動作，
+    //  所以「轉動」模式下 Shift+拖曳 = 平移；「平移」模式下 Shift+拖曳 = 轉動。）
+    function applyNavMode(mode) {
+        const isPan = (mode === 'pan');
+        controls.mouseButtons = {
+            LEFT: isPan ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: isPan ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN
+        };
+        controls.touches = {
+            ONE: isPan ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE,
+            TWO: THREE.TOUCH.DOLLY_PAN
+        };
+        const r = document.getElementById('btn-nav-rotate');
+        const p = document.getElementById('btn-nav-pan');
+        if (r && p) {
+            r.classList.toggle('active', !isPan);
+            p.classList.toggle('active', isPan);
+        }
+        controls.domElement.style.cursor = isPan ? 'move' : 'grab';
+    }
+    window.setNavMode = applyNavMode;
+
+    // ---- 縮放按鈕（＋/－）與重置視角 ----
+    const ZOOM_STEP = 1.2;          // 每次縮放倍率
+    let zoomGoal = null;            // 目標距離（平滑動畫用）
+    const DEFAULT_CAM_POS = new THREE.Vector3(0, 2, 20);
+    const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
+
+    function currentDistance() { return camera.position.distanceTo(controls.target); }
+
+    function zoomStep(factor) {   // factor > 1 放大（拉近）, < 1 縮小（拉遠）
+        const base = (zoomGoal !== null) ? zoomGoal : currentDistance();
+        zoomGoal = Math.min(controls.maxDistance, Math.max(controls.minDistance, base / factor));
+    }
+
+    function updateZoomAnimation() {
+        if (zoomGoal === null) return;
+        const d = currentDistance();
+        const nd = d + (zoomGoal - d) * 0.25;
+        if (Math.abs(zoomGoal - nd) < 0.01) { zoomGoal = null; return; }
+        const dir = camera.position.clone().sub(controls.target).normalize();
+        camera.position.copy(controls.target).addScaledVector(dir, nd);
+    }
+
+    function setupViewButtons() {
+        // 使用者改用滾輪縮放時，取消按鈕的動畫目標
+        controls.domElement.addEventListener('wheel', () => { zoomGoal = null; }, { passive: true });
+
+        const bindHold = (id, factor) => {
+            const btn = document.getElementById(id);
+            let timer = null, delayTimer = null, held = false;
+            const stop = () => { clearTimeout(delayTimer); clearInterval(timer); timer = delayTimer = null; };
+            btn.addEventListener('pointerdown', (e) => {
+                if (e.button !== undefined && e.button !== 0) return;
+                held = true;
+                zoomStep(factor);
+                delayTimer = setTimeout(() => { timer = setInterval(() => zoomStep(factor), 110); }, 350);
+            });
+            ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+            btn.addEventListener('blur', stop);
+            // 鍵盤（Enter / 空白鍵）觸發的 click：detail === 0
+            btn.addEventListener('click', (e) => { if (e.detail === 0) zoomStep(factor); });
+            btn.addEventListener('contextmenu', (e) => e.preventDefault());
+        };
+        bindHold('btn-zoom-in', ZOOM_STEP);
+        bindHold('btn-zoom-out', 1 / ZOOM_STEP);
+
+        document.getElementById('btn-view-reset').addEventListener('click', () => {
+            zoomGoal = null;
+            camera.position.copy(DEFAULT_CAM_POS);
+            controls.target.copy(DEFAULT_TARGET);
+            controls.update();
+        });
     }
 
     window.setMode = function(mode) {
@@ -749,7 +943,7 @@
             retinaMesh.position.x = currentRetinaX;
 
             minSliderValue = 0;
-            slider.style.background = '#444';
+            slider.style.background = '#cbd5e1';
             
             distSlider.min = -8; 
             distSlider.max = 16;
@@ -764,7 +958,7 @@
             retinaMesh.position.x = currentRetinaX;
 
             minSliderValue = 75; 
-            slider.style.background = 'linear-gradient(to right, #800 0%, #800 75%, #444 75%, #444 100%)';
+            slider.style.background = 'linear-gradient(to right, #e9a3a3 0%, #e9a3a3 75%, #cbd5e1 75%, #cbd5e1 100%)';
             
             distSlider.min = 4;
             distSlider.max = 16;
@@ -776,7 +970,7 @@
             retinaMesh.position.x = currentRetinaX;
 
             minSliderValue = 0;
-            slider.style.background = '#444';
+            slider.style.background = '#cbd5e1';
             
             distSlider.min = 4;
             distSlider.max = 16;
@@ -799,14 +993,67 @@
         updateSimulation(); 
     };
 
+    // 讓主視角的「可見中心」落在控制面板上方的空白區：以 camera.setViewOffset 把畫面往上推
+    // （close-up 使用另一台 camera2，不受影響）
+    function updateViewOffset() {
+        const W = window.innerWidth, H = window.innerHeight;
+        const panel = document.getElementById('ui-panel');
+        const pr = panel.getBoundingClientRect();
+        const panelTop = Math.min(H, pr.top);
+        // 窄螢幕時，上方有資訊卡與 3D 特寫視窗，空白區從它們下方開始算
+        let topReserved = 0;
+        if (W <= 600) {
+            ['info-overlay', 'magnifier-container'].forEach(id => {
+                const r = document.getElementById(id).getBoundingClientRect();
+                topReserved = Math.max(topReserved, r.bottom);
+            });
+        }
+        const toggleH = document.getElementById('panel-toggle').offsetHeight;
+        const freeBottom = panelTop - toggleH - 4;
+        const center = (topReserved + freeBottom) / 2;
+        let dy = Math.round(H / 2 - center);
+        dy = Math.max(0, Math.min(dy, H * 0.45));
+        camera.aspect = W / H;
+        if (dy > 0) camera.setViewOffset(W, H, 0, dy, W, H);
+        else camera.clearViewOffset();
+        camera.updateProjectionMatrix();
+    }
+
+    function placePanelToggle() {
+        const pr = document.getElementById('ui-panel').getBoundingClientRect();
+        document.getElementById('panel-toggle').style.bottom = (window.innerHeight - pr.top - 1) + 'px';
+    }
+
+    function setupPanelToggle() {
+        const panel = document.getElementById('ui-panel');
+        const btn = document.getElementById('panel-toggle');
+        let t = null;
+        const refresh = () => { placePanelToggle(); updateViewOffset(); };
+        btn.addEventListener('click', () => {
+            const collapse = !panel.classList.contains('collapsed');
+            panel.classList.add('animating');
+            panel.classList.toggle('collapsed', collapse);
+            btn.textContent = collapse ? '▲ 展開' : '▼ 收合';
+            btn.setAttribute('aria-expanded', String(!collapse));
+            clearTimeout(t);
+            t = setTimeout(() => { panel.classList.remove('animating'); refresh(); }, 400);
+        });
+        // 面板高度改變（收合動畫、換行、字體載入…）時，同步重新定位頁籤與視角
+        if (window.ResizeObserver) new ResizeObserver(refresh).observe(panel);
+        refresh();
+    }
+
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
+        placePanelToggle();
+        updateViewOffset();
         renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
     function animate() {
         requestAnimationFrame(animate);
+        updateZoomAnimation();
         controls.update();
 
         // 1. 渲染主畫布
@@ -819,14 +1066,15 @@
         renderer.render(scene, camera);
 
         // 2. 渲染 3D 放大鏡
-        const magDiv = document.getElementById('magnifier-container');
-        const rect = magDiv.getBoundingClientRect();
-        
-        const pixelRatio = window.devicePixelRatio;
-        const width = rect.width * pixelRatio;
-        const height = (rect.height - 40) * pixelRatio; 
-        const left = rect.left * pixelRatio;
-        const bottom = (window.innerHeight - rect.bottom) * pixelRatio;
+        // 注意：renderer.setViewport / setScissor 吃的是「CSS 像素」，three.js 內部會再乘上
+        // devicePixelRatio；原本多乘一次 pixelRatio，導致手機/高 DPI/瀏覽器縮放時特寫畫面跑出畫面外（空白）。
+        const magView = document.getElementById('mag-view');
+        const rect = magView.getBoundingClientRect();
+
+        const width = Math.max(1, Math.floor(rect.width));
+        const height = Math.max(1, Math.floor(rect.height));
+        const left = Math.floor(rect.left);
+        const bottom = Math.floor(window.innerHeight - rect.bottom);
 
         camera2.quaternion.copy(camera.quaternion);
         camera2.position.copy(camera.position);
@@ -843,8 +1091,8 @@
         renderer.setScissor(left, bottom, width, height);
         renderer.setViewport(left, bottom, width, height);
         
-        // 關鍵修復：手動清除放大鏡區域的背景，並補上深灰色底色
-        renderer.setClearColor(new THREE.Color(0x1a1a1a)); 
+        // 關鍵修復：手動清除放大鏡區域的背景，並補上白色底色
+        renderer.setClearColor(new THREE.Color(0xffffff)); 
         renderer.clearColor();
         
         renderer.render(scene, camera2);
@@ -854,6 +1102,9 @@
     }
 
     init();
+
+    // 供測試用：讓外部檢查 controls / camera 狀態（不影響功能）
+    window.__eyeSim = { get controls() { return controls; }, get camera() { return camera; } };
 
 </script>
 </body>
