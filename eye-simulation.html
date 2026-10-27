@@ -461,6 +461,10 @@
     
     let currentRetinaX = NORMAL_RETINA_X;
     
+    // 視網膜球冠：半徑與半張角（眼球外框半徑為 3.0，視網膜貼在其內側）
+    const RETINA_R = NORMAL_RETINA_X / 2;                 // 2.5：後極點正好落在 x = 5
+    const RETINA_CAP_ANGLE = 65 * Math.PI / 180;          // 球冠半張角 65°
+
     const COLOR_TOP = 0x0088aa; 
     const COLOR_BOT = 0xe65100; 
 
@@ -645,6 +649,43 @@
         return new THREE.BufferGeometry().setFromPoints(pts);
     }
 
+    // 讓視網膜球冠與眼球外框使用相同的位置/軸向縮放（後極點 = currentRetinaX）
+    function syncRetinaToEye() {
+        retinaMesh.position.x = eyeSphere.position.x;
+        retinaMesh.scale.set(eyeSphere.scale.x, 1, 1);
+    }
+
+    // 視網膜橢球參數（與眼球同心）：center, 軸向半徑 a, 側向半徑 b
+    function retinaEllipsoid() {
+        const sx = eyeSphere.scale.x;
+        return { c: eyeSphere.position.x, a: RETINA_R * sx, b: RETINA_R };
+    }
+
+    // 由透鏡點 L 經像點 I 的直線，與視網膜球面（較遠的交點）的交點；若無交點則退回平面 x = currentRetinaX
+    function hitRetina(L, I) {
+        const { c, a, b } = retinaEllipsoid();
+        const dx = I.x - L.x, dy = I.y - L.y, dz = I.z - L.z;
+        const A = (dx * dx) / (a * a) + (dy * dy + dz * dz) / (b * b);
+        const B = 2 * ((L.x - c) * dx / (a * a) + (L.y * dy + L.z * dz) / (b * b));
+        const C = ((L.x - c) * (L.x - c)) / (a * a) + (L.y * L.y + L.z * L.z) / (b * b) - 1;
+        const disc = B * B - 4 * A * C;
+        let t;
+        if (A > 1e-9 && disc >= 0) {
+            const r1 = (-B + Math.sqrt(disc)) / (2 * A), r2 = (-B - Math.sqrt(disc)) / (2 * A);
+            t = Math.max(r1, r2);
+        } else {
+            t = (currentRetinaX - L.x) / dx;
+        }
+        return new THREE.Vector3(L.x + t * dx, L.y + t * dy, L.z + t * dz);
+    }
+
+    // 視網膜表面上 (y, z) 處的 x 座標（後半球）
+    function retinaSurfaceX(y, z) {
+        const { c, a, b } = retinaEllipsoid();
+        const k = 1 - (y * y + z * z) / (b * b);
+        return c + a * Math.sqrt(Math.max(0, k));
+    }
+
     function createEye() {
         eyeGroup = new THREE.Group();
         scene.add(eyeGroup);
@@ -675,7 +716,10 @@
         lens.position.set(LENS_X, 0, 0);
         eyeGroup.add(lens);
 
-        const retinaGeo = new THREE.CircleGeometry(3.0, 32);
+        // 視網膜：眼球後內壁的球冠（與眼球同心、半徑 RETINA_R，後極點在 x = currentRetinaX，
+        // 所以對焦位置與原本的平面 x=const 完全相同），隨眼球一起縮放（近視/遠視）
+        const capGeo = new THREE.SphereGeometry(RETINA_R, 64, 24, 0, Math.PI * 2, 0, RETINA_CAP_ANGLE);
+        capGeo.rotateZ(-Math.PI / 2);   // 極軸由 +Y 轉到 +X（光軸）
         const retinaMat = new THREE.MeshBasicMaterial({ 
             color: 0x6a1b9a, 
             side: THREE.DoubleSide,
@@ -683,13 +727,14 @@
             opacity: 0.3, // 預設透明度為 30%
             depthWrite: false 
         });
-        retinaMesh = new THREE.Mesh(retinaGeo, retinaMat);
-        retinaMesh.rotation.y = -Math.PI / 2;
-        retinaMesh.position.set(NORMAL_RETINA_X, 0, 0);
-        // 視網膜邊緣環（較醒目，隨視網膜位置移動）
+        retinaMesh = new THREE.Mesh(capGeo, retinaMat);
+        retinaMesh.position.set(defaultCenter, 0, 0);
+        // 視網膜邊緣帶（較醒目，隨視網膜一起移動）
+        const edgeGeo = new THREE.SphereGeometry(RETINA_R * 1.002, 64, 1, 0, Math.PI * 2, RETINA_CAP_ANGLE - 0.05, 0.05);
+        edgeGeo.rotateZ(-Math.PI / 2);
         const retinaEdge = new THREE.Mesh(
-            new THREE.RingGeometry(2.92, 3.0, 64),
-            new THREE.MeshBasicMaterial({ color: 0x6a1b9a, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false })
+            edgeGeo,
+            new THREE.MeshBasicMaterial({ color: 0x6a1b9a, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false })
         );
         retinaMesh.add(retinaEdge);
         eyeGroup.add(retinaMesh);
@@ -719,10 +764,13 @@
         scene.add(objectArrow);
     }
 
+    // 透鏡上的光線穿過點：上、下、左、右邊緣＋中心（lensPoints[i] = [y, z]）
+    // 左右方向沿側向軸 z（預設視角由 +z 看過來時，左右光線會與中心光線重疊，轉動視角即可看出立體光錐）
+    const LENS_RAY_POINTS = [[1.0, 0], [0, 0], [-1.0, 0], [0, -1.0], [0, 1.0]];
+
     function createGhostVisualization() {
         const shape = new THREE.Shape(arrowShapePoints);
-        const geometry = new THREE.ShapeGeometry(shape); 
-        
+
         const ghostMat = new THREE.MeshBasicMaterial({ 
             color: 0x0f8a2c, 
             transparent: true, 
@@ -734,10 +782,11 @@
         const lineMatTop = new THREE.LineBasicMaterial({ color: COLOR_TOP, transparent: true, opacity: 0.8 });
         const lineMatBot = new THREE.LineBasicMaterial({ color: COLOR_BOT, transparent: true, opacity: 0.8 });
 
-        for(let i=0; i<3; i++) {
+        for(let i=0; i<LENS_RAY_POINTS.length; i++) {
+            // 每個箭頭的頂點每次更新時會被貼到視網膜曲面上，所以每個 ghost 用自己的 geometry
+            const geometry = new THREE.ShapeGeometry(shape);
+            geometry.userData.base = geometry.attributes.position.array.slice();
             const ghost = new THREE.Mesh(geometry, ghostMat.clone());
-            ghost.rotation.y = -Math.PI / 2; 
-            ghost.position.set(currentRetinaX - 0.05, 0, 0);
             ghost.frustumCulled = false; 
             scene.add(ghost);
             ghostArrows.push(ghost);
@@ -789,37 +838,42 @@
         const imageTipY = 1.0 * -imageScale;
         const imageBaseY = -1.0 * -imageScale;
 
-        const lensPointsY = [1.0, 0, -1.0]; 
+        const imgTipPos = new THREE.Vector3(convergenceX, imageTipY, 0); 
+        const imgBasePos = new THREE.Vector3(convergenceX, imageBaseY, 0); 
+        const objTopPos = new THREE.Vector3(-objectDistance, arrowTopY, 0);
+        const objBotPos = new THREE.Vector3(-objectDistance, arrowBotY, 0);
 
-        for(let i=0; i<3; i++) {
-            const lensY = lensPointsY[i];
+        for(let i=0; i<LENS_RAY_POINTS.length; i++) {
+            const lensPos = new THREE.Vector3(0, LENS_RAY_POINTS[i][0], LENS_RAY_POINTS[i][1]);
             const ghost = ghostArrows[i];
             const lines = traceLines[i];
 
-            ghost.position.x = currentRetinaX - 0.05;
+            // 光線自透鏡點經像點延伸到視網膜（球面）
+            const retinaTopPos = hitRetina(lensPos, imgTipPos);
+            const retinaBotPos = hitRetina(lensPos, imgBasePos);
 
-            const retinaTipY = lensY + (currentRetinaX - 0) * (imageTipY - lensY) / (convergenceX - 0);
-            const retinaBaseY = lensY + (currentRetinaX - 0) * (imageBaseY - lensY) / (convergenceX - 0);
+            const retinaTipY = retinaTopPos.y;
+            const retinaBaseY = retinaBotPos.y;
+            const zc = (retinaTopPos.z + retinaBotPos.z) / 2.0;
 
             const projectedHeight = Math.abs(retinaTipY - retinaBaseY);
             const scaleY = projectedHeight / 2.0;
             const centerY = (retinaTipY + retinaBaseY) / 2.0;
-
             const isInverted = retinaTipY < retinaBaseY;
-            ghost.scale.set(scaleY * 0.5, isInverted ? -scaleY : scaleY, 1); 
-            ghost.position.y = centerY;
+            const sy = isInverted ? -scaleY : scaleY;
 
-            const objTopPos = new THREE.Vector3(-objectDistance, arrowTopY, 0);
-            const lensPos = new THREE.Vector3(0, lensY, 0);
-            const imgTipPos = new THREE.Vector3(convergenceX, imageTipY, 0); 
-            const retinaTopPos = new THREE.Vector3(currentRetinaX, retinaTipY, 0);
-            
+            // 視網膜上的箭頭像：頂點貼到視網膜曲面上（原本是平面箭頭，高度/寬度算法不變）
+            const pos = ghost.geometry.attributes.position;
+            const base = ghost.geometry.userData.base;
+            for (let k = 0; k < pos.count; k++) {
+                const u = base[k * 3], v = base[k * 3 + 1];
+                const y = centerY + sy * v;
+                const z = zc + u * scaleY * 0.5;
+                pos.setXYZ(k, retinaSurfaceX(y, z) - 0.03, y, z);
+            }
+            pos.needsUpdate = true;
+
             lines.top.geometry.setFromPoints([objTopPos, lensPos, imgTipPos, retinaTopPos]);
-
-            const objBotPos = new THREE.Vector3(-objectDistance, arrowBotY, 0);
-            const imgBasePos = new THREE.Vector3(convergenceX, imageBaseY, 0); 
-            const retinaBotPos = new THREE.Vector3(currentRetinaX, retinaBaseY, 0);
-            
             lines.bot.geometry.setFromPoints([objBotPos, lensPos, imgBasePos, retinaBotPos]);
         }
         
@@ -940,7 +994,7 @@
             const scaleX = SHORT_RETINA_X / NORMAL_RETINA_X;
             eyeSphere.scale.x = scaleX;
             eyeSphere.position.x = 2.1;
-            retinaMesh.position.x = currentRetinaX;
+            syncRetinaToEye();
 
             minSliderValue = 0;
             slider.style.background = '#cbd5e1';
@@ -955,7 +1009,7 @@
             currentRetinaX = NORMAL_RETINA_X;
             eyeSphere.scale.x = 1;
             eyeSphere.position.x = 2.5; 
-            retinaMesh.position.x = currentRetinaX;
+            syncRetinaToEye();
 
             minSliderValue = 75; 
             slider.style.background = 'linear-gradient(to right, #e9a3a3 0%, #e9a3a3 75%, #cbd5e1 75%, #cbd5e1 100%)';
@@ -967,7 +1021,7 @@
             currentRetinaX = NORMAL_RETINA_X;
             eyeSphere.scale.x = 1;
             eyeSphere.position.x = 2.5;
-            retinaMesh.position.x = currentRetinaX;
+            syncRetinaToEye();
 
             minSliderValue = 0;
             slider.style.background = '#cbd5e1';
@@ -1104,7 +1158,7 @@
     init();
 
     // 供測試用：讓外部檢查 controls / camera 狀態（不影響功能）
-    window.__eyeSim = { get controls() { return controls; }, get camera() { return camera; } };
+    window.__eyeSim = { get controls() { return controls; }, get camera() { return camera; }, get traceLines() { return traceLines; }, get retinaMesh() { return retinaMesh; }, get eyeSphere() { return eyeSphere; }, get ghostArrows() { return ghostArrows; }, get retinaX() { return currentRetinaX; } };
 
 </script>
 </body>
