@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>電流磁效應：直導線、環形線圈、螺線管 3D → 黑板畫法</title>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<style>
+:root{--bg:#eef2f7;--panel:#ffffff;--ink:#1b2430;--muted:#5a6878;--line:#cfd8e3;--btn:#f3f6fa;--btnh:#e3ebf5;--cur:#e0561b;--fld:#2f7fe0;--arr:#0b1f66;--on:#1f6fd6;--cap:#fffbe8}
+body.board{--bg:#20342b;--panel:#2b4a3b;--ink:#f4f1e6;--muted:#c9d6cc;--line:#47705a;--btn:#355946;--btnh:#416b55;--cur:#ffab7a;--fld:#9fd8ff;--arr:#ffffff;--on:#9fd8ff;--cap:#2f5241}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif}
+#app{display:grid;grid-template-columns:1fr 340px;height:100vh}
+#main{display:flex;flex-direction:column;min-width:0;min-height:0}
+#title{padding:6px 14px;font-size:22px;font-weight:800;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+#title small{font-size:15px;font-weight:500;color:var(--muted)}
+#view{position:relative;flex:1;min-height:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#view canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#overlay{pointer-events:none}
+#caption{padding:8px 14px;font-size:20px;line-height:1.4;background:var(--cap);min-height:64px;font-weight:600}
+#caption .c{color:var(--cur)} #caption .f{color:var(--fld)} #caption .n{color:#d62828}
+#side{overflow-y:auto;background:var(--panel);border-left:1px solid var(--line);padding:8px 10px;font-size:15px}
+.sec{margin-bottom:9px}
+.sec h3{margin:3px 0 5px;font-size:15px;color:var(--muted);font-weight:700}
+.row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-size:15px;padding:6px 8px;border:1px solid var(--line);background:var(--btn);color:var(--ink);border-radius:7px;cursor:pointer;user-select:none;touch-action:manipulation}
+button:hover{background:var(--btnh)}
+button.on{background:var(--on);color:#fff;border-color:var(--on)}
+body.board button.on{color:#16261e}
+.preset{flex:1 1 46%;font-weight:700}
+.mode{flex:1 1 30%;font-weight:700}
+.nav{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.nav button{padding:5px 0}
+input[type=range]{flex:1;min-width:80px}
+label.sl{font-size:14px;color:var(--muted);min-width:96px}
+#readout{font-size:17px;font-weight:700;line-height:1.5}
+#bar{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+#bar div{height:100%;background:var(--fld);width:0}
+.hint{font-size:13px;color:var(--muted);line-height:1.4;margin:4px 0}
+@media (max-width:820px){
+ #app{grid-template-columns:1fr;grid-template-rows:auto auto;height:auto}
+ #main{height:78vh}
+ #side{border-left:none;border-top:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+<div id="app">
+ <div id="main">
+  <div id="title"><span id="ttl">電流磁效應：長直載流導線</span><small>安培：電流大→磁場強，距離遠→磁場弱（B ∝ I / r）</small></div>
+  <div id="view"><canvas id="c3"></canvas><canvas id="overlay"></canvas></div>
+  <div id="caption"></div>
+ </div>
+ <div id="side">
+  <div class="sec"><h3>磁場來源</h3>
+   <div class="row"><button class="mode" data-m="straight">長直導線</button><button class="mode" data-m="loop">環形線圈</button><button class="mode" data-m="solenoid">螺線管</button></div>
+   <div class="row" style="margin-top:5px"><button id="bendBtn">▶ 彎成線圈</button><button id="unbendBtn">◀ 拉回直線</button></div>
+   <div class="row"><label class="sl">彎曲 <span id="bendVal">0</span>%</label><input type="range" id="bend" min="0" max="100" step="1" value="0"></div>
+   <div class="row"><label class="sl">拉成螺線管 <span id="strVal">0</span>%</label><input type="range" id="stretch" min="0" max="100" step="1" value="0"></div>
+   <div class="row"><label class="sl">匝數 N = <span id="Nval">8</span></label><button class="hold" id="Nminus">－</button><input type="range" id="turns" min="3" max="12" step="1" value="8"><button class="hold" id="Nplus">＋</button></div>
+  </div>
+  <div class="sec"><h3>視角（變成黑板畫法）</h3>
+   <div class="row">
+    <button class="preset" data-p="oblique">3D 斜視</button>
+    <button class="preset" data-p="side">側視（紙面）</button>
+    <button class="preset" data-p="top">俯視（從上往下）</button>
+    <button class="preset" data-p="bottom">仰視（從下往上）</button>
+   </div></div>
+  <div class="sec"><h3>電流</h3>
+   <div class="row"><button id="dirUp" class="on">↑ 向上</button><button id="dirDown">↓ 向下</button><button id="dirFlip">⇅ 反轉</button></div>
+   <div class="row" style="margin-top:4px"><label class="sl">I = <span id="Ival">5</span> A</label><button class="hold" id="Iminus">－</button><input type="range" id="Islider" min="1" max="10" step="0.5" value="5"><button class="hold" id="Iplus">＋</button></div></div>
+  <div class="sec"><h3>探針（拖曳紫色球）</h3>
+   <div id="readout"></div><div id="bar"><div></div></div>
+   <div class="row" style="margin-top:5px"><button class="hold" id="rminus">遠離 －</button><button class="hold" id="rplus">＋ 遠離</button></div></div>
+  <div class="sec"><h3>顯示</h3>
+   <div class="row">
+    <button id="tSingle" class="on">只顯示中間層</button>
+    <button id="tHand" class="on">右手定則</button>
+    <button id="tCharge" class="on">移動電荷</button>
+    <button id="tCompass" class="on">小磁針</button>
+    <button id="tBoard">黑板模式</button>
+    <button id="tBar">棒狀磁鐵對照</button>
+    <button id="tReal" title="預設以 N 個同軸圓線圈（理想螺線管）計算；開啟則用真實螺旋線計算，會有淨軸向電流造成的扭曲">真實螺旋磁場</button>
+   </div></div>
+  <div class="sec"><h3>鏡頭（可按住連續）</h3>
+   <div class="nav">
+    <button class="hold" data-a="rotL">⟲ 左轉</button><button class="hold" data-a="rotU">⤒ 上轉</button><button class="hold" data-a="rotR">⟳ 右轉</button>
+    <button class="hold" data-a="panL">← 平移</button><button class="hold" data-a="rotD">⤓ 下轉</button><button class="hold" data-a="panR">平移 →</button>
+    <button class="hold" data-a="panU">↑ 平移</button><button class="hold" data-a="panD">↓ 平移</button><button id="reset">重置</button>
+    <button class="hold" data-a="zoomIn">＋ 放大</button><span></span><button class="hold" data-a="zoomOut">－ 縮小</button>
+   </div>
+   <p class="hint">左鍵拖曳：旋轉　右鍵或 Shift+拖曳：平移　滾輪：縮放</p></div>
+ </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import {LineSegments2} from 'three/addons/lines/LineSegments2.js';
+import {LineSegmentsGeometry} from 'three/addons/lines/LineSegmentsGeometry.js';
+import {LineMaterial} from 'three/addons/lines/LineMaterial.js';
+const $=id=>document.getElementById(id);
+const view=$('view'), c3=$('c3'), ov=$('overlay'), ctx=ov.getContext('2d');
+// ---------- state ----------
+const R0=2, LW=2*Math.PI*R0, PITCH=0.62;
+const S={bar:false,realHelix:false,s:1,I:5,b:0,t:0,N:8,single:true,probeH:new THREE.Vector3(2.5,0,0),probeV:new THREE.Vector3(2.6,3.4,0),board:false,hand:true,charge:true,compass:true,preset:'oblique'};
+const RADII=[0.8,1.4,2.1,3.0,4.1,5.4];
+const LAYERS=[-2.6,0,2.6];
+const SIDE_LAYERS=[-3.6,-2.7,-1.8,-0.9,0,0.9,1.8,2.7,3.6];
+const COL={light:{cur:0xe0561b,fld:0x4f95ea,arr:0x0b1f66,out:0xffffff,bg:0xf6f8fb,plane:0x8aa0b8,probe:0x7a2fc0,hand:0xf2c29b,sN:0x9aa4ae,curS:'#e0561b',fldS:'#2f7fe0',arrS:'#0b1f66',ink:'#1b2430'},
+           board:{cur:0xffab7a,fld:0x9fd8ff,arr:0xffffff,out:0x0d2a1e,bg:0x274536,plane:0xe8f0e0,probe:0xe7c6ff,hand:0xf6e7cf,sN:0xf2f2f2,curS:'#ffab7a',fldS:'#9fd8ff',arrS:'#ffffff',ink:'#f4f1e6'}};
+const NRED=0xd62828;
+const pal=()=>S.board?COL.board:COL.light;
+const isStraight=()=>S.b<0.005&&S.t<0.005;
+function modeName(){if(isStraight())return 'straight';if(S.t>0.995)return 'solenoid';if(S.t>0.005)return 'stretch';if(S.b>0.995)return 'loop';return 'bend';}
+// analytic infinite straight wire (relative units, B = I/r)
+function Bstraight(p){const r=Math.hypot(p.x,p.z);return new THREE.Vector3(S.s*p.z,0,-S.s*p.x).divideScalar(r).multiplyScalar(S.I/r);}
+// ---------- wire geometry (current flows along increasing index when s=+1) ----------
+const q2=v=>Math.round(v*100)/100;
+function wirePts(b,t,N){const P=[];
+  if(t>0.004){const turns=1+(N-1)*t,n=Math.ceil(turns*28),pe=PITCH*t;
+    for(let i=0;i<=n;i++){const f=-Math.PI*turns+2*Math.PI*turns*i/n;P.push(new THREE.Vector3(pe*f/(2*Math.PI),R0*Math.sin(f),R0*Math.cos(f)));}return P;}
+  const n=96;for(let i=0;i<=n;i++){const sp=-LW/2+LW*i/n;
+    if(b<0.004)P.push(new THREE.Vector3(0,sp,0));
+    else{const Rk=LW/(2*Math.PI*b),f=sp/Rk;P.push(new THREE.Vector3(0,Rk*Math.sin(f),R0-Rk*(1-Math.cos(f))-R0*(1-b)));}}
+  return P;}
+function segsOf(P,w=1){const n=P.length-1,a=new Float64Array(n*7);for(let i=0;i<n;i++){a.set([P[i].x,P[i].y,P[i].z,P[i+1].x,P[i+1].y,P[i+1].z,w],i*7);}return a;}
+// ideal solenoid: coaxial circular loops (axially symmetric, no net axial current); continuous from 1 loop (t=0) to N loops (t=1)
+function idealSegs(t,N){const turns=1+(N-1)*t,n=Math.ceil(turns-1e-9),len=PITCH*t*turns,w=turns/n,parts=[];
+  for(let k=0;k<n;k++){const x=n>1?-len/2+len*(k+0.5)/n:0,P=[];for(let i=0;i<=96;i++){const f=-Math.PI+2*Math.PI*i/96;P.push(new THREE.Vector3(x,R0*Math.sin(f),R0*Math.cos(f)));}parts.push(segsOf(P,w));}
+  const a=new Float64Array(parts.reduce((m,q)=>m+q.length,0));let o=0;for(const q of parts){a.set(q,o);o+=q.length;}return a;}
+// Biot–Savart, exact finite-segment formula, per unit current, s=+1. Units: infinite wire → 1/r
+const BO=[0,0,0];
+function shapeB(px,py,pz,sg){let bx=0,by=0,bz=0,dmin=1e9;
+  for(let i=0;i<sg.length;i+=7){const ax=sg[i],ay=sg[i+1],az=sg[i+2];let ux=sg[i+3]-ax,uy=sg[i+4]-ay,uz=sg[i+5]-az;const L=Math.hypot(ux,uy,uz);ux/=L;uy/=L;uz/=L;
+    const r1x=px-ax,r1y=py-ay,r1z=pz-az,t1=r1x*ux+r1y*uy+r1z*uz;const rx=r1x-t1*ux,ry=r1y-t1*uy,rz=r1z-t1*uz;const d2=rx*rx+ry*ry+rz*rz+1e-6;
+    const n1=Math.hypot(r1x,r1y,r1z),t2=t1-L,n2=Math.sqrt(d2+t2*t2-1e-6);const f=(t1/n1-t2/n2)/d2*0.5*sg[i+6];
+    bx+=(uy*rz-uz*ry)*f;by+=(uz*rx-ux*rz)*f;bz+=(ux*ry-uy*rx)*f;if(n1<dmin)dmin=n1;}
+  BO[0]=bx;BO[1]=by;BO[2]=bz;return dmin;}
+function fieldAt(p){if(isStraight())return Bstraight(p);shapeB(p.x,p.y,p.z,cur.segs);return new THREE.Vector3(BO[0],BO[1],BO[2]).multiplyScalar(S.s*S.I);}
+// seeds: continuous from straight (rings) → loop → solenoid
+const DS=[0.35,0.8,1.3,1.75];
+function seedsOf(b,t,single){const out=[];
+  if(t>0.004||b>0.995){const planes=single?[0]:[0,Math.PI/3,-Math.PI/3];
+    const dd=t>0.5?[0.55,1.15,1.75]:DS;for(const a of planes)for(const d of dd)for(const sg of [1,-1]){const y=sg*(R0-d);out.push(new THREE.Vector3(0,y*Math.cos(a),y*Math.sin(a)));}return out;}
+  for(const sg of [1,-1]){const sp=sg*LW/4,f=sp*2*Math.PI*b/LW,Rk=b>0.004?LW/(2*Math.PI*b):0;
+    const w=b>0.004?new THREE.Vector3(0,Rk*Math.sin(f),R0-Rk*(1-Math.cos(f))-R0*(1-b)):new THREE.Vector3(0,sp,0);
+    const n=new THREE.Vector3(0,-Math.sin(f),-Math.cos(f));for(const d of DS)out.push(w.clone().addScaledVector(n,d));}
+  return out;}
+function traceLine(seed,sg){const step=(p,dir)=>{let dm=shapeB(p[0],p[1],p[2],sg);let m=Math.hypot(BO[0],BO[1],BO[2]);if(m<1e-9)return null;
+    const h=Math.min(0.16,Math.max(0.03,0.22*dm))*dir;const mx=p[0]+BO[0]/m*h*0.5,my=p[1]+BO[1]/m*h*0.5,mz=p[2]+BO[2]/m*h*0.5;
+    shapeB(mx,my,mz,sg);m=Math.hypot(BO[0],BO[1],BO[2]);if(m<1e-9)return null;return [p[0]+BO[0]/m*h,p[1]+BO[1]/m*h,p[2]+BO[2]/m*h];};
+  const run=dir=>{const pts=[[seed.x,seed.y,seed.z]];let p=pts[0],closed=false;
+    for(let k=0;k<900;k++){const n=step(p,dir);if(!n)break;pts.push(n);p=n;
+      if(Math.hypot(p[0],p[1],p[2])>11.5)break;
+      if(k>12&&Math.hypot(p[0]-seed.x,p[1]-seed.y,p[2]-seed.z)<0.12){pts.push([seed.x,seed.y,seed.z]);closed=true;break;}}
+    return {pts,closed};};
+  const f=run(1);if(f.closed)return f.pts;const bk=run(-1);return bk.pts.reverse().concat(f.pts.slice(1));}
+// cache of traced states
+const CACHE=new Map();let cur={key:''};
+function stateFor(b,t,N,single){const real=S.realHelix&&t>0.004;const key=`${b}|${t}|${N}|${single}|${real}`;let st=CACHE.get(key);if(st)return st;
+  const P=wirePts(b,t,N),sg=(t>0.004&&!real)?idealSegs(t,N):segsOf(P);st={key,P,segs:sg,lines:[],b,t,N};
+  if(!(b<0.005&&t<0.005)){for(const sd of seedsOf(b,t,single))st.lines.push(traceLine(sd,sg));
+    st.compass=[];for(let x=-6;x<=6.01;x+=1.5)for(let y=-4.5;y<=4.51;y+=1.5){const dm=shapeB(x,y,0,sg);if(dm<0.45)continue;const m=Math.hypot(...BO);st.compass.push({p:new THREE.Vector3(x,y,0),d:new THREE.Vector3(BO[0]/m,BO[1]/m,BO[2]/m)});}}
+  // magnetic moment direction (∝ Σ r × dl): right-hand rule reference
+  const mom=new THREE.Vector3();for(let i=0;i<P.length-1;i++){mom.add(P[i].clone().cross(P[i+1].clone().sub(P[i])));}st.moment=mom;
+  shapeB(0,0,0,sg);st.Bc=new THREE.Vector3(...BO);
+  const turns=t>0.004?1+(N-1)*t:1;st.len=t>0.004?PITCH*t*turns:0;st.turns=turns;
+  if(CACHE.size>260)CACHE.delete(CACHE.keys().next().value);CACHE.set(key,st);return st;}
+// ---------- three ----------
+const renderer=new THREE.WebGLRenderer({canvas:c3,antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(40,1,0.1,3000);
+scene.add(new THREE.AmbientLight(0xffffff,0.8));const dl=new THREE.DirectionalLight(0xffffff,1.1);dl.position.set(5,10,7);scene.add(dl);
+const curMat=new THREE.MeshStandardMaterial({color:COL.light.cur,roughness:.4});
+const wireMat=new THREE.MeshStandardMaterial({color:COL.light.cur,roughness:.4,transparent:true});const wire=new THREE.Mesh(new THREE.BufferGeometry(),wireMat);scene.add(wire);
+const wireArrows=new THREE.InstancedMesh(new THREE.ConeGeometry(0.27,0.7,20),curMat,64);scene.add(wireArrows);
+const planeMat=new THREE.MeshBasicMaterial({color:COL.light.plane,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false});
+const plane=new THREE.Mesh(new THREE.PlaneGeometry(13,13),planeMat);plane.rotation.x=-Math.PI/2;scene.add(plane);
+const planeEdgeMat=new THREE.LineBasicMaterial({color:COL.light.plane,transparent:true,opacity:.6});
+const planeEdge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(13,13)),planeEdgeMat);planeEdge.rotation.x=-Math.PI/2;scene.add(planeEdge);
+// arrow materials (contrasting with field lines), with outline for 黑板模式
+const arrowGeo=new THREE.ConeGeometry(0.19,0.5,18);
+const outlineMat=new THREE.MeshBasicMaterial({color:COL.light.out,side:THREE.BackSide,transparent:true});
+// straight-mode analytic rings
+const fieldGroup=new THREE.Group();scene.add(fieldGroup);const rings=[];
+for(const y of LAYERS)for(const r of RADII){
+  const m=new THREE.MeshStandardMaterial({color:COL.light.fld,transparent:true,roughness:.5,emissive:COL.light.fld,emissiveIntensity:.15});
+  const am=new THREE.MeshStandardMaterial({color:COL.light.arr,transparent:true,roughness:.4,emissive:COL.light.arr,emissiveIntensity:.2});
+  const om=outlineMat.clone();
+  const g=new THREE.Group();const tor=new THREE.Mesh(new THREE.TorusGeometry(r,y===0?0.045:0.03,8,96),m);tor.rotation.x=Math.PI/2;g.add(tor);
+  const cones=[];for(let k=0;k<3;k++){const c=new THREE.Mesh(arrowGeo,am);const o=new THREE.Mesh(arrowGeo,om);o.scale.setScalar(1.3);c.add(o);g.add(c);cones.push({mesh:c,ang:k*Math.PI*2/3+y*0.3+r*0.7});}
+  g.position.y=y;fieldGroup.add(g);rings.push({g,m,am,om,y,r,cones});}
+// traced field lines (Biot–Savart)
+const lineMat=new LineMaterial({color:COL.light.fld,linewidth:3.5,transparent:true,opacity:.9,worldUnits:false});
+let lineObj=null;
+const MAXA=900;const tArrowMat=new THREE.MeshStandardMaterial({color:COL.light.arr,emissive:COL.light.arr,emissiveIntensity:.2});
+const tArrows=new THREE.InstancedMesh(arrowGeo,tArrowMat,MAXA);const tArrowsO=new THREE.InstancedMesh(arrowGeo,outlineMat,MAXA);scene.add(tArrows,tArrowsO);
+// compass needles: red N, grey/white S
+const nMatN=new THREE.MeshStandardMaterial({color:NRED,emissive:NRED,emissiveIntensity:.15}),nMatS=new THREE.MeshStandardMaterial({color:COL.light.sN});
+const pivotMat=new THREE.MeshStandardMaterial({color:0x333333});
+function makeNeedle(){const g=new THREE.Group();const n=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.42,10),nMatN);n.position.y=0.21;const sm=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.42,10),nMatS);sm.position.y=-0.21;sm.rotation.z=Math.PI;g.add(n,sm,new THREE.Mesh(new THREE.SphereGeometry(0.06,8,6),pivotMat));return g;}
+const compassH=new THREE.Group();scene.add(compassH);const needlesH=[];
+for(const ly of LAYERS)for(let x=-5;x<=5;x+=1.25)for(let z=-5;z<=5;z+=1.25){const r=Math.hypot(x,z);if(r<0.9||r>5.9)continue;const g=makeNeedle();g.position.set(x,ly+0.05,z);compassH.add(g);needlesH.push({g,p:new THREE.Vector3(x,0,z),ly});}
+const compassV=new THREE.Group();scene.add(compassV);const needlesV=[];for(let i=0;i<160;i++){const g=makeNeedle();g.visible=false;compassV.add(g);needlesV.push(g);}
+// probe
+const probeMat=new THREE.MeshStandardMaterial({color:COL.light.probe,emissive:COL.light.probe,emissiveIntensity:.3});
+const probe=new THREE.Mesh(new THREE.SphereGeometry(0.26,24,16),probeMat);scene.add(probe);
+const probeArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),1,COL.light.arr,0.4,0.28);scene.add(probeArrow);
+const rLineMat=new THREE.LineDashedMaterial({color:COL.light.probe,dashSize:.2,gapSize:.15});
+const rLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]),rLineMat);scene.add(rLine);
+// charges
+const chargeGroup=new THREE.Group();scene.add(chargeGroup);
+const chMat=new THREE.MeshStandardMaterial({color:0xffd23f,emissive:0xffa000,emissiveIntensity:.6});
+for(let i=0;i<110;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(0.15,14,10),chMat);chargeGroup.add(m);}
+let chargePhase=0,chargeDist=0; // chargePhase in world units along the wire
+const CH_SPACING=1.26,CH_SPEED=0.38; // world units, units/s per ampere — same in every mode
+// ---------- bar magnet (uniformly magnetised cylinder ≡ surface current = ideal short solenoid) ----------
+const BAR_R=1.0;const barGroup=new THREE.Group();scene.add(barGroup);
+const barNMat=new THREE.MeshStandardMaterial({color:0xd62828,transparent:true,opacity:.92,roughness:.5}),barSMat=new THREE.MeshStandardMaterial({color:0xe9edf2,transparent:true,opacity:.92,roughness:.5});
+const barLineMat=new LineMaterial({color:0xb0306a,linewidth:3,dashed:true,dashSize:0.35,gapSize:0.22,transparent:true,opacity:.95,worldUnits:false});
+let barLines=null,barLen=0,barU=1,barTarget=1;const barBody=new THREE.Group();barGroup.add(barBody);
+function buildBar(len){barLen=len;barBody.clear();
+  const h=new THREE.CylinderGeometry(BAR_R,BAR_R,len/2,40);const n=new THREE.Mesh(h,barNMat),sm=new THREE.Mesh(h,barSMat);
+  n.rotation.z=-Math.PI/2;n.position.x=len/4;sm.rotation.z=-Math.PI/2;sm.position.x=-len/4;barBody.add(n,sm); // local +x = N
+  if(barLines){barGroup.remove(barLines);barLines.geometry.dispose();}
+  // magnetisation along +x ⇒ surface current circulating right-handed about +x
+  const parts=[],nl=24;for(let k=0;k<nl;k++){const x=-len/2+len*(k+0.5)/nl,P=[];for(let i=0;i<=72;i++){const f=Math.PI-2*Math.PI*i/72;P.push(new THREE.Vector3(x,BAR_R*Math.sin(f),BAR_R*Math.cos(f)));}parts.push(segsOf(P,1));}
+  const sg=new Float64Array(parts.reduce((m,q)=>m+q.length,0));let o=0;for(const q of parts){sg.set(q,o);o+=q.length;}barGroup.userData.segs=sg;
+  const pos=[];for(const y of [0.25,0.6,0.9,-0.25,-0.6,-0.9]){const L=traceLine(new THREE.Vector3(0,y,0),sg);for(let i=0;i<L.length-1;i++)pos.push(...L[i],...L[i+1]);}
+  const g=new LineSegmentsGeometry();g.setPositions(pos);barLines=new LineSegments2(g,barLineMat);barLines.computeLineDistances();barGroup.add(barLines);}
+function barNSign(){return Math.sign(cur.Bc.x*S.s)||1;}
+// right hand template: thumb +y, fingers curl right-handed about +y
+const handGroup=new THREE.Group();scene.add(handGroup);
+const handMat=new THREE.MeshStandardMaterial({color:COL.light.hand,roughness:.7});
+const thumbTipMat=new THREE.MeshStandardMaterial({color:COL.light.cur});
+(function buildHand(){const R=0.55;
+  for(let f=0;f<4;f++){const y=-0.32*f,P=[];const a0=0.3,a1=a0+Math.PI*1.45;
+    for(let k=0;k<=24;k++){const a=a0+(a1-a0)*k/24;P.push(new THREE.Vector3(R*Math.cos(a),y,-R*Math.sin(a)));}
+    handGroup.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(P),32,0.12,10),handMat));
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(0.12,12,8),handMat);tip.position.copy(P[P.length-1]);handGroup.add(tip);}
+  const palm=new THREE.Mesh(new THREE.BoxGeometry(0.35,1.35,0.9),handMat);palm.position.set(0.75,-0.5,0);handGroup.add(palm);
+  const thumb=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.15,1.4,12),handMat);thumb.position.set(0.45,0.75,0);handGroup.add(thumb);
+  const tt=new THREE.Mesh(new THREE.ConeGeometry(0.18,0.35,12),thumbTipMat);tt.position.set(0.45,1.6,0);handGroup.add(tt);})();
+const handTip=new THREE.Object3D();handTip.position.set(0.45,1.9,0);handGroup.add(handTip);
+// ---------- camera control ----------
+const CAM={theta:0.6,phi:1.15,dist:24,flat:0,target:new THREE.Vector3()};
+function presetPose(name){const m=modeName(),straight=m==='straight';const st=cur;const big=st.len?Math.max(0,st.len-2)*0.8:0;
+  if(name==='oblique')return {theta:0.6,phi:1.15,dist:24+big,flat:0,ty:straight?0.3:0};
+  if(name==='side')return {theta:0,phi:Math.PI/2,dist:(straight?17.5:16)+big,flat:1,ty:0};
+  if(straight)return name==='top'?{theta:0,phi:0.0008,dist:15,flat:1,ty:0}:{theta:0,phi:Math.PI-0.0008,dist:15,flat:1,ty:0};
+  return name==='top'?{theta:Math.PI/2,phi:Math.PI/2,dist:21,flat:1,ty:0}:{theta:-Math.PI/2,phi:Math.PI/2,dist:21,flat:1,ty:0};}
+let anim=null;
+function applyCam(){const fov=40-32*CAM.flat;camera.fov=fov;
+  const d=CAM.dist*Math.tan(20*Math.PI/360)/Math.tan(fov*Math.PI/360);
+  const v=new THREE.Vector3(Math.sin(CAM.phi)*Math.sin(CAM.theta),Math.cos(CAM.phi),Math.sin(CAM.phi)*Math.cos(CAM.theta));
+  camera.position.copy(CAM.target).addScaledVector(v,d);camera.up.set(0,1,0);camera.lookAt(CAM.target);camera.near=d*0.05;camera.far=d*4;camera.updateProjectionMatrix();}
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+function setPreset(name,instant){S.preset=name;const P=presetPose(name);
+  document.querySelectorAll('.preset').forEach(b=>b.classList.toggle('on',b.dataset.p===name));
+  const dth=((P.theta-CAM.theta)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI;
+  const from={theta:CAM.theta,phi:CAM.phi,dist:CAM.dist,flat:CAM.flat,target:CAM.target.clone()};
+  const to={theta:CAM.theta+dth,phi:P.phi,dist:P.dist,flat:P.flat,target:new THREE.Vector3(0,P.ty,0)};
+  if(instant){CAM.theta=to.theta;CAM.phi=to.phi;CAM.dist=to.dist;CAM.flat=to.flat;CAM.target.copy(to.target);anim=null;return;}
+  anim={t0:performance.now(),dur:1500,from,to};}
+function stepAnim(now){if(!anim)return;const t=Math.min(1,(now-anim.t0)/anim.dur);const e=ease(t),f=anim.from,g=anim.to;
+  CAM.theta=f.theta+(g.theta-f.theta)*e;CAM.phi=f.phi+(g.phi-f.phi)*e;CAM.dist=f.dist+(g.dist-f.dist)*e;CAM.flat=f.flat+(g.flat-f.flat)*e;
+  CAM.target.copy(f.target).lerp(g.target,e);if(t>=1)anim=null;}
+function userMoved(){anim=null;if(S.preset!=='free'){S.preset='free';document.querySelectorAll('.preset').forEach(b=>b.classList.remove('on'));}}
+function rotate(dx,dy){userMoved();CAM.theta-=dx;CAM.phi=Math.min(Math.PI-0.0008,Math.max(0.0008,CAM.phi-dy));}
+function pan(dx,dy){userMoved();const s=CAM.dist*0.0016;const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+  CAM.target.addScaledVector(right,-dx*s).addScaledVector(up,dy*s);}
+function zoom(f){anim=null;CAM.dist=Math.min(70,Math.max(4,CAM.dist*f));}
+// mouse
+let drag=null;const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
+function setNdc(e){const r=c3.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(ndc,camera);}
+c3.addEventListener('contextmenu',e=>e.preventDefault());
+c3.addEventListener('pointerdown',e=>{c3.setPointerCapture(e.pointerId);
+  if(e.button===2||e.shiftKey){drag={mode:'pan',x:e.clientX,y:e.clientY};return;}
+  if(e.button!==0)return;setNdc(e);
+  if(probe.visible&&ray.intersectObject(probe).length){drag={mode:'probe'};return;}
+  drag={mode:'rot',x:e.clientX,y:e.clientY};});
+c3.addEventListener('pointermove',e=>{if(!drag)return;
+  if(e.shiftKey&&drag.mode!=='pan'){drag={mode:'pan',x:e.clientX,y:e.clientY};return;}
+  const dx=e.clientX-(drag.x??e.clientX),dy=e.clientY-(drag.y??e.clientY);drag.x=e.clientX;drag.y=e.clientY;
+  if(drag.mode==='rot')rotate(dx*0.008,dy*0.008);else if(drag.mode==='pan')pan(dx,dy);
+  else if(drag.mode==='probe'){setNdc(e);const p=new THREE.Vector3();
+    if(isStraight()){if(ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),0),p))setProbe(p.x,p.z);}
+    else if(ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,0,1),0),p))setProbeV(p.x,p.y);}});
+c3.addEventListener('pointerup',()=>drag=null);c3.addEventListener('pointercancel',()=>drag=null);
+c3.addEventListener('wheel',e=>{e.preventDefault();zoom(e.deltaY>0?1.1:1/1.1);},{passive:false});
+function hold(btn,fn){let to=null,iv=null;const stop=()=>{clearTimeout(to);clearInterval(iv);to=iv=null;};
+  btn.addEventListener('pointerdown',e=>{e.preventDefault();stop();fn();to=setTimeout(()=>{iv=setInterval(fn,60);},400);});
+  ['pointerup','pointerleave','pointercancel','blur'].forEach(ev=>btn.addEventListener(ev,stop));}
+const ACT={rotL:()=>rotate(-0.05,0),rotR:()=>rotate(0.05,0),rotU:()=>rotate(0,-0.05),rotD:()=>rotate(0,0.05),
+  panL:()=>pan(-25,0),panR:()=>pan(25,0),panU:()=>pan(0,-25),panD:()=>pan(0,25),zoomIn:()=>zoom(1/1.06),zoomOut:()=>zoom(1.06)};
+document.querySelectorAll('[data-a]').forEach(b=>hold(b,ACT[b.dataset.a]));
+$('reset').onclick=()=>setPreset('oblique');
+document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>setPreset(b.dataset.p));
+// ---------- shape morph (bend / stretch) ----------
+let morph=null; // {b,t} target, animated at constant speed
+function goShape(b,t,instant){if(instant){S.b=b;S.t=t;morph=null;shapeChanged();return;}morph={b,t};}
+function stepMorph(dt){if(!morph)return;const sb=dt/2.5,stp=dt/2.2;
+  if(S.t>0.0001&&morph.b<S.b-1e-6){S.t=Math.max(0,S.t-stp);} // unstretch before unbending
+  else if(Math.abs(morph.b-S.b)>1e-6){S.b+=Math.sign(morph.b-S.b)*Math.min(sb,Math.abs(morph.b-S.b));}
+  else if(Math.abs(morph.t-S.t)>1e-6){S.t+=Math.sign(morph.t-S.t)*Math.min(stp,Math.abs(morph.t-S.t));}
+  else morph=null;shapeChanged();}
+const MODES={straight:[0,0],loop:[1,0],solenoid:[1,1]};
+function setMode(m,instant){goShape(...MODES[m],instant);}
+document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$('bendBtn').onclick=()=>goShape(1,0);$('unbendBtn').onclick=()=>goShape(0,0);
+$('bend').oninput=e=>{morph=null;S.b=+e.target.value/100;if(S.b<1)S.t=0;shapeChanged();};
+$('stretch').oninput=e=>{morph=null;S.t=+e.target.value/100;if(S.t>0)S.b=1;shapeChanged();};
+function setTurns(n){S.N=Math.min(12,Math.max(3,Math.round(n)));$('turns').value=S.N;$('Nval').textContent=S.N;shapeChanged();}
+$('turns').oninput=e=>setTurns(+e.target.value);hold($('Nminus'),()=>setTurns(S.N-1));hold($('Nplus'),()=>setTurns(S.N+1));
+let lastMode='';
+function shapeChanged(){const bq=q2(S.b),tq=q2(S.t);
+  const st=stateFor(bq,tq,S.N,S.single||(morph!==null&&bq<1));
+  if(st!==cur){cur=st;rebuildShape();}
+  $('bend').value=Math.round(S.b*100);$('bendVal').textContent=Math.round(S.b*100);$('stretch').value=Math.round(S.t*100);$('strVal').textContent=Math.round(S.t*100);
+  const m=modeName();
+  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  if(m!==lastMode){const straight=m==='straight';
+    $('ttl').textContent={straight:'電流磁效應：長直載流導線',bend:'直導線彎成環形線圈',loop:'電流磁效應：環形線圈',stretch:'環形線圈拉成螺線管',solenoid:'電流磁效應：螺線管'}[m];
+    $('dirUp').textContent=straight?'↑ 向上':'方向 A';$('dirDown').textContent=straight?'↓ 向下':'方向 B';
+    const lbl=straight?['俯視（從上往下）','仰視（從下往上）']:['沿軸看（從右）','沿軸看（從左）'];
+    document.querySelector('[data-p=top]').textContent=lbl[0];document.querySelector('[data-p=bottom]').textContent=lbl[1];
+    if((lastMode==='straight')!==straight&&S.preset!=='free'&&!morph)setPreset(S.preset);
+    lastMode=m;}
+  if(!morph&&S.preset!=='free'&&S.preset!=='oblique'&&cur._posed!==true){cur._posed=true;}
+  updateField();}
+function rebuildShape(){const st=cur,P=st.P;
+  wire.geometry.dispose();wire.geometry=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(P),Math.min(600,P.length*3),0.11,12,false);
+  if(lineObj){scene.remove(lineObj);lineObj.geometry.dispose();lineObj=null;}
+  if(st.lines.length){const pos=[];for(const L of st.lines)for(let i=0;i<L.length-1;i++)pos.push(...L[i],...L[i+1]);
+    const g=new LineSegmentsGeometry();g.setPositions(pos);lineObj=new LineSegments2(g,lineMat);scene.add(lineObj);}}
+// ---------- controls ----------
+function setDir(s){S.s=s;$('dirUp').classList.toggle('on',s>0);$('dirDown').classList.toggle('on',s<0);updateField();}
+$('dirUp').onclick=()=>setDir(1);$('dirDown').onclick=()=>setDir(-1);$('dirFlip').onclick=()=>setDir(-S.s);
+function setI(v){S.I=Math.min(10,Math.max(1,Math.round(v*2)/2));$('Islider').value=S.I;$('Ival').textContent=S.I;updateField();}
+$('Islider').oninput=e=>setI(+e.target.value);hold($('Iminus'),()=>setI(S.I-0.5));hold($('Iplus'),()=>setI(S.I+0.5));
+function setProbe(x,z){let r=Math.hypot(x,z);if(r<0.6){if(r<1e-6){x=0.6;z=0;}else{x*=0.6/r;z*=0.6/r;}}r=Math.hypot(x,z);if(r>6){x*=6/r;z*=6/r;}S.probeH.set(x,0,z);updateField();}
+function setProbeV(x,y){S.probeV.set(Math.max(-8,Math.min(8,x)),Math.max(-5,Math.min(5,y)),0);updateField();}
+function probeR(dr){if(isStraight()){const r=Math.hypot(S.probeH.x,S.probeH.z),u=S.probeH.clone().divideScalar(r);setProbe(u.x*(r+dr),u.z*(r+dr));}
+  else{const p=S.probeV,r=p.length()||1;setProbeV(p.x*(r+dr)/r,p.y*(r+dr)/r);}}
+hold($('rminus'),()=>probeR(-0.1));hold($('rplus'),()=>probeR(0.1));
+function tog(id,key,after){$(id).onclick=()=>{S[key]=!S[key];$(id).classList.toggle('on',S[key]);after&&after();};}
+tog('tHand','hand');tog('tCharge','charge');tog('tCompass','compass');tog('tBoard','board',applyTheme);
+tog('tBar','bar',()=>{barU=1;barTarget=S.bar?0:1;});tog('tReal','realHelix',()=>shapeChanged());tog('tSingle','single',()=>{$('tSingle').textContent=S.single?'只顯示中間層':'顯示三層';shapeChanged();});
+function applyTheme(){document.body.classList.toggle('board',S.board);const P=pal();scene.background=new THREE.Color(P.bg);
+  curMat.color.set(P.cur);wireMat.color.set(P.cur);thumbTipMat.color.set(P.cur);planeMat.color.set(P.plane);planeEdgeMat.color.set(P.plane);probeMat.color.set(P.probe);probeMat.emissive.set(P.probe);handMat.color.set(P.hand);
+  nMatS.color.set(P.sN);rLineMat.color.set(P.probe);probeArrow.setColor(P.arr);lineMat.color.set(P.fld);tArrowMat.color.set(P.arr);tArrowMat.emissive.set(P.arr);outlineMat.color.set(P.out);
+  for(const R of rings){R.m.color.set(P.fld);R.m.emissive.set(P.fld);R.am.color.set(P.arr);R.am.emissive.set(P.arr);R.om.color.set(P.out);}}
+// ---------- field update ----------
+const strength=r=>S.I/r;
+const ringVisible=r=>strength(r)>=0.45;
+const Y=new THREE.Vector3(0,1,0),M4=new THREE.Matrix4(),QQ=new THREE.Quaternion(),VS=new THREE.Vector3();
+function updateField(){const straight=isStraight(),P=pal();
+  for(const R of rings){R.vis=ringVisible(R.r)&&(!S.single||R.y===0);R.base=Math.min(1,0.3+strength(R.r)/2.5);
+    for(const c of R.cones){const a=c.ang;const p=new THREE.Vector3(R.r*Math.cos(a),0,R.r*Math.sin(a));c.mesh.position.copy(p);
+      c.mesh.quaternion.setFromUnitVectors(Y,Bstraight(p).normalize());c.mesh.scale.setScalar(0.85+0.45*Math.min(1,strength(R.r)/3));}}
+  for(const n of needlesH){n.g.quaternion.setFromUnitVectors(Y,Bstraight(n.p).normalize());n.g.visible=!S.single||n.ly===0;}
+  // traced arrows
+  let k=0;if(!straight){const sp=cur.t>0.5?4.2:2.3;for(const L of cur.lines){let acc=1.1;for(let i=0;i<L.length-1&&k<MAXA;i++){const a=L[i],b=L[i+1];const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2],d=Math.hypot(dx,dy,dz);acc+=d;
+      if(acc>=sp){acc=0;VS.set(dx*S.s,dy*S.s,dz*S.s).normalize();QQ.setFromUnitVectors(Y,VS);
+        M4.compose(new THREE.Vector3(a[0],a[1],a[2]),QQ,new THREE.Vector3(1,1,1).multiplyScalar(0.62+0.03*S.I));tArrows.setMatrixAt(k,M4);
+        M4.compose(new THREE.Vector3(a[0],a[1],a[2]),QQ,new THREE.Vector3(1,1,1).multiplyScalar((0.62+0.03*S.I)*1.3));tArrowsO.setMatrixAt(k,M4);k++;}}}}
+  tArrows.count=tArrowsO.count=k;tArrows.instanceMatrix.needsUpdate=tArrowsO.instanceMatrix.needsUpdate=true;
+  // compass V
+  const cl=straight?[]:cur.compass;needlesV.forEach((g,i)=>{const c=cl[i];g.visible=!!c;if(c){g.position.copy(c.p);g.scale.setScalar(0.8);VS.copy(c.d).multiplyScalar(S.s);g.quaternion.setFromUnitVectors(Y,VS);}});
+  lineMat.opacity=0.55+0.045*S.I;
+  // wire current arrows
+  const PP=cur.P,cum=[0];for(let i=1;i<PP.length;i++)cum.push(cum[i-1]+PP[i].distanceTo(PP[i-1]));const tot=cum[cum.length-1];
+  const nA=straight?1:Math.max(3,Math.round((cur.turns||1)*2));
+  for(let j=0;j<nA;j++){const f=straight?(S.s>0?0.97:0.03):(j+0.5)/nA;const pt=atLen(PP,cum,f*tot);VS.copy(pt.dir).multiplyScalar(S.s);QQ.setFromUnitVectors(Y,VS);M4.compose(pt.p,QQ,new THREE.Vector3(1,1,1));wireArrows.setMatrixAt(j,M4);}
+  wireArrows.count=nA;wireArrows.instanceMatrix.needsUpdate=true;cur.cum=cum;cur.tot=tot;
+  // probe
+  const pr=straight?S.probeH:S.probeV;probe.position.copy(pr);const B=fieldAt(pr),bl=B.length();
+  probeArrow.position.copy(pr);probeArrow.setDirection(B.clone().normalize());const L=Math.min(3.5,0.35*bl+0.4);probeArrow.setLength(L,Math.min(0.5,L*0.35),0.3);
+  rLine.visible=straight;if(straight){rLine.geometry.setFromPoints([new THREE.Vector3(0,0.02,0),pr.clone().setY(0.02)]);rLine.computeLineDistances();}
+  if(straight){const r=Math.hypot(pr.x,pr.z);$('readout').innerHTML=`r = ${r.toFixed(2)}　I = ${S.I} A<br>B（相對）∝ I / r = <span style="color:var(--fld)">${(S.I/r).toFixed(2)}</span>`;}
+  else $('readout').innerHTML=`位置 (${pr.x.toFixed(1)}, ${pr.y.toFixed(1)})　I = ${S.I} A<br>|B|（相對，畢歐–沙伐）= <span style="color:var(--fld)">${bl.toFixed(2)}</span>`;
+  document.querySelector('#bar div').style.width=Math.min(100,bl/16*100)+'%';
+  // hand orientation
+  if(straight){VS.set(0,S.s,0);handGroup.position.set(0,2.2,0);}
+  else{VS.copy(cur.Bc).multiplyScalar(S.s).normalize();handGroup.position.set(cur.len/2+2.4,0,0);}
+  handGroup.quaternion.setFromUnitVectors(Y,VS);
+}
+function atLen(P,cum,s){let i=1;while(i<cum.length-1&&cum[i]<s)i++;const f=(s-cum[i-1])/((cum[i]-cum[i-1])||1);return {p:P[i-1].clone().lerp(P[i],f),dir:P[i].clone().sub(P[i-1]).normalize()};}
+// ---------- overlay ----------
+let W=1,H=1;
+function resize(){const r=view.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();
+  const dpr=Math.min(2,devicePixelRatio);ov.width=W*dpr;ov.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);lineMat.resolution.set(W,H);barLineMat.resolution.set(W,H);}
+new ResizeObserver(resize).observe(view);
+function proj(p){const v=p.clone().project(camera);return {x:(v.x+1)/2*W,y:(1-v.y)/2*H,z:v.z};}
+const smooth=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
+const INFO={};
+function sym(x,y,out,R,col,ring){ctx.strokeStyle=ctx.fillStyle=col;ctx.lineWidth=Math.max(2,R*0.22);
+  if(ring){ctx.fillStyle=S.board?'#274536':'#ffffff';ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.stroke();ctx.fillStyle=col;}
+  const k=ring?0.55:0.6;
+  if(out){ctx.beginPath();ctx.arc(x,y,ring?R*0.3:R*0.38,0,7);ctx.fill();}
+  else{ctx.beginPath();ctx.moveTo(x-R*k,y-R*k);ctx.lineTo(x+R*k,y+R*k);ctx.moveTo(x+R*k,y-R*k);ctx.lineTo(x-R*k,y+R*k);ctx.stroke();}}
+function drawOverlay(){ctx.clearRect(0,0,W,H);const P=pal();const straight=isStraight();
+  const v=camera.position.clone().sub(CAM.target).normalize();INFO.v=v;
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.shadowBlur=S.board?3:0;ctx.shadowColor='rgba(255,255,255,.35)';
+  INFO.sideSyms=[];INFO.wireOut=null;INFO.circ=null;INFO.cross=[];INFO.centreOut=null;INFO.NS=null;
+  const big='bold 24px "Noto Sans TC",sans-serif';
+  if(straight){
+    const aT=smooth(0.95,0.9995,Math.abs(v.y)),aS=smooth(0.95,0.9995,Math.sqrt(1-v.y*v.y));INFO.aT=aT;INFO.aS=aS;
+    if(aS>0.001){const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);right.y=0;right.normalize();ctx.globalAlpha=aS;
+      for(const y of SIDE_LAYERS)for(const r of RADII){if(!ringVisible(r))continue;for(const sd of [-1,1]){
+        const p=right.clone().multiplyScalar(sd*r);p.y=y;const out=Bstraight(p).dot(v)>0;const q=proj(p);
+        const sz=Math.min(15,4+11*strength(r)/5)*(0.4+0.6*aS);INFO.sideSyms.push({x:q.x,y:q.y,out});sym(q.x,q.y,out,sz,P.fldS,false);}}
+      const c=proj(new THREE.Vector3());const L=INFO.sideSyms.find(s=>s.x<c.x),R=INFO.sideSyms.find(s=>s.x>c.x);
+      ctx.font=big;ctx.textAlign='center';ctx.fillStyle=P.fldS;ctx.strokeStyle=S.board?'#274536':'#f6f8fb';ctx.lineWidth=6;
+      const ty=Math.max(26,proj(new THREE.Vector3(0,4.2,0)).y-6);
+      for(const [s0,x] of [[L,Math.max(80,c.x-W*0.22)],[R,Math.min(W-80,c.x+W*0.22)]])if(s0){const t=s0.out?'出紙面 ·':'入紙面 ×';ctx.strokeText(t,x,ty);ctx.fillText(t,x,ty);}
+      ctx.globalAlpha=1;}
+    if(aT>0.001){ctx.globalAlpha=aT;const c=proj(new THREE.Vector3());let circ=0;
+      for(const r of RADII){if(!ringVisible(r))continue;ctx.strokeStyle=P.fldS;ctx.lineWidth=2+3*Math.min(1,strength(r)/4);ctx.beginPath();
+        for(let k=0;k<=96;k++){const a=k/96*2*Math.PI;const q=proj(new THREE.Vector3(r*Math.cos(a),0,r*Math.sin(a)));k?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);}ctx.stroke();
+        for(const a of [0.4,0.4+Math.PI*2/3,0.4+Math.PI*4/3]){const p=new THREE.Vector3(r*Math.cos(a),0,r*Math.sin(a));const q=proj(p),qb=proj(p.clone().addScaledVector(Bstraight(p).normalize(),0.05));
+          let dx=qb.x-q.x,dy=qb.y-q.y;const n=Math.hypot(dx,dy)||1;dx/=n;dy/=n;circ+=Math.sign((q.x-c.x)*(-dy)+(q.y-c.y)*dx);
+          arrowHead(q.x,q.y,dx,dy,14+6*Math.min(1,strength(r)/4),P);}}
+      INFO.circ=circ>0?'ccw':'cw';const out=S.s*v.y>0;INFO.wireOut=out;sym(c.x,c.y,out,20,P.curS,true);
+      ctx.font='bold 22px "Noto Sans TC",sans-serif';ctx.textAlign='left';ctx.fillStyle=P.curS;ctx.fillText(out?'I 出紙面 ⊙':'I 入紙面 ⊗',c.x+28,c.y-26);ctx.globalAlpha=1;}
+  } else {
+    const aZ=smooth(0.95,0.9995,Math.abs(v.z)),aX=smooth(0.95,0.9995,Math.abs(v.x));INFO.aZ=aZ;INFO.aX=aX;INFO.aT=0;INFO.aS=0;
+    // wire crossings of the page plane z=0 (side / cross-section view)
+    const PP=cur.P;for(let i=0;i<PP.length-1;i++){const a=PP[i],b=PP[i+1];if((a.z>0)!==(b.z>0)){const f=a.z/(a.z-b.z);const p=a.clone().lerp(b,f);const dz=(b.z-a.z)*S.s;
+      const out=dz*v.z>0;const q=proj(p);INFO.cross.push({x:q.x,y:q.y,out,wy:p.y,wx:p.x});}}
+    if(aZ>0.001){ctx.globalAlpha=aZ;for(const c of INFO.cross)sym(c.x,c.y,c.out,15,P.curS,true);ctx.globalAlpha=1;}
+    if(aX>0.001&&S.b>0.995){ctx.globalAlpha=aX;const c=proj(new THREE.Vector3());const out=cur.Bc.x*S.s*v.x>0;INFO.centreOut=out;
+      sym(c.x,c.y,out,22,P.fldS,true);ctx.font='bold 22px "Noto Sans TC",sans-serif';ctx.textAlign='left';ctx.fillStyle=P.fldS;
+      const rs=Math.abs(proj(new THREE.Vector3(0,1,0)).y-c.y); // px per unit
+      for(let k=0;k<6;k++){const a=k*Math.PI/3+Math.PI/6;sym(c.x+Math.cos(a)*rs*1.1,c.y+Math.sin(a)*rs*1.1,out,12,P.fldS,false);}
+      for(let k=0;k<12;k++){const a=k*Math.PI/6;sym(c.x+Math.cos(a)*rs*3.3,c.y+Math.sin(a)*rs*3.3,!out,16,P.fldS,false);}
+      for(let k=0;k<4;k++){const i=Math.min(PP.length-2,Math.floor((k+0.5)/4/(cur.turns||1)*(PP.length-1)));const q=proj(PP[i]),qb=proj(PP[i+1]);let dx=(qb.x-q.x)*S.s,dy=(qb.y-q.y)*S.s;const n=Math.hypot(dx,dy)||1;arrowHead(q.x,q.y,dx/n,dy/n,30,{arrS:P.curS});}ctx.fillStyle=P.fldS;
+      ctx.strokeStyle=S.board?'#274536':'#ffffff';ctx.lineWidth=5;const t1=(S.t>0.004?'管內':'中心')+(out?' B 出紙面 ⊙':' B 入紙面 ⊗'),t2=out?'外圍回流 入紙面 ×':'外圍回流 出紙面 ·';
+      ctx.textAlign='center';ctx.strokeText(t1,c.x,c.y-rs*R0-22);ctx.fillText(t1,c.x,c.y-rs*R0-22);ctx.strokeText(t2,c.x,Math.min(H-12,c.y+rs*3.9));ctx.fillText(t2,c.x,Math.min(H-12,c.y+rs*3.9));ctx.textAlign='left';
+      // current circulation as seen
+      let circ=0;const cc=proj(new THREE.Vector3(0,0,0));for(let i=0;i<PP.length-1;i+=3){const q=proj(PP[i]),qb=proj(PP[i+1]);const dx=(qb.x-q.x)*S.s,dy=(qb.y-q.y)*S.s;circ+=(q.x-cc.x)*(-dy)+(q.y-cc.y)*dx;}
+      INFO.circ=circ>0?'ccw':'cw';ctx.globalAlpha=1;}
+    // N / S poles for solenoid
+    if(S.t>0.3){const bx=Math.sign(cur.Bc.x*S.s);const nP=new THREE.Vector3(bx*(cur.len/2+1.0),0,0),sP=new THREE.Vector3(-bx*(cur.len/2+1.0),0,0);
+      const qn=proj(nP),qs=proj(sP);INFO.NS={nx:qn.x,sx:qs.x,nWorldX:nP.x};ctx.font='bold 34px "Noto Sans TC",sans-serif';ctx.textAlign='center';ctx.lineWidth=6;ctx.strokeStyle=S.board?'#274536':'#ffffff';
+      ctx.globalAlpha=Math.min(1,(S.t-0.3)/0.4)*(1-aX);ctx.textBaseline='middle';ctx.strokeText('N',qn.x,qn.y);ctx.fillStyle='#d62828';ctx.fillText('N',qn.x,qn.y);ctx.strokeText('S',qs.x,qs.y);ctx.fillStyle=S.board?'#e8eef2':'#5a6878';ctx.fillText('S',qs.x,qs.y);ctx.globalAlpha=1;ctx.textBaseline='alphabetic';}
+  }
+  if(barGroup.visible&&!(INFO.aX>0.5)){barGroup.updateMatrixWorld();ctx.font='bold 26px "Noto Sans TC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const [lx,t,c] of [[barLen/4,'N','#ffffff'],[-barLen/4,'S','#1b2430']]){const q=proj(barGroup.localToWorld(new THREE.Vector3(lx,0,0)));ctx.fillStyle=c;ctx.fillText(t,q.x,q.y);}ctx.textBaseline='alphabetic';}
+  ctx.shadowBlur=0;ctx.font='bold 22px "Noto Sans TC",sans-serif';ctx.textAlign='left';
+  if(straight&&INFO.aT<0.5){const wt=proj(new THREE.Vector3(0,5.6*S.s,0));ctx.fillStyle=P.curS;ctx.fillText('I',wt.x+16,wt.y+8);}
+  const hideProbe=straight?INFO.aS>0.9:INFO.aX>0.5;probe.visible=probeArrow.visible=!hideProbe;
+  if(!hideProbe){const pr=straight?S.probeH:S.probeV;const pp=proj(pr.clone().add(new THREE.Vector3(0,0.3,0)));ctx.fillStyle=S.board?'#e7c6ff':'#7a2fc0';ctx.font='bold 18px "Noto Sans TC",sans-serif';
+    ctx.fillText(`探針 |B|=${fieldAt(pr).length().toFixed(2)}`,pp.x+14,pp.y-18);}
+}
+function arrowHead(x,y,dx,dy,L,P){ctx.fillStyle=P.arrS;ctx.strokeStyle=S.board?'#0d2a1e':'#ffffff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+dx*L*0.6,y+dy*L*0.6);ctx.lineTo(x-dx*L*0.6-dy*L*0.55,y-dy*L*0.6+dx*L*0.55);ctx.lineTo(x-dx*L*0.6+dy*L*0.55,y-dy*L*0.6-dx*L*0.55);ctx.closePath();ctx.fill();ctx.stroke();}
+// ---------- caption ----------
+function caption(){const v=INFO.v,m=modeName();let h;
+  const scr=p=>proj(p);const o=scr(new THREE.Vector3());
+  const lr=vec=>{const q=scr(vec);return q.x<o.x?'左':'右';};
+  if(m==='straight'){const up=scr(new THREE.Vector3(0,S.s,0));const curScreen=up.y<o.y?'向上':'向下';
+    if(INFO.aT>0.6){const out=INFO.wireOut;h=`${v.y>0?'從上往下':'從下往上'}沿導線看：電流<span class="c">${out?'穿出紙面 ⊙':'穿入紙面 ⊗'}</span>，磁力線是以導線為圓心的<span class="f">同心圓，方向${INFO.circ==='ccw'?'逆時針':'順時針'}</span>（右手定則：拇指指 I，四指繞向即 B）。越外圈越疏、越弱：B ∝ I / r。`;}
+    else if(INFO.aS>0.6&&INFO.sideSyms.length){const L=INFO.sideSyms.find(s=>s.x<o.x),R=INFO.sideSyms.find(s=>s.x>o.x);const d=s=>s.out?'穿出紙面 ·':'穿入紙面 ×';
+      h=`從側面看（導線在紙面上，電流<span class="c">${curScreen}</span>）：圓形磁力線穿過紙面，<span class="f">左邊${d(L)}，右邊${d(R)}</span>；靠近導線符號密而大，遠處稀而小（B ∝ I / r）。`;}
+    else h=`3D：電流 <span class="c">${S.s>0?'向上':'向下'}</span>，磁力線是水平面上環繞導線的<span class="f">同心圓</span>（${S.s>0?'由上往下看為逆時針':'由上往下看為順時針'}）。電流大→磁場強，距離遠→磁場弱。按「視角」按鈕看它如何變成黑板上的畫法。`;}
+  else if(m==='bend')h=`直導線彎曲中 <b>${Math.round(S.b*100)}%</b>：磁力線由畢歐–沙伐定律依導線的實際形狀即時計算——繞導線的<span class="f">同心圓</span>逐漸變成<span class="f">環形線圈</span>的磁場。可拖曳「彎曲」滑桿停在中途。`;
+  else if(m==='stretch')h=`線圈拉伸成螺線管 <b>${Math.round(S.t*100)}%</b>：匝數增加，各匝磁場疊加，管內磁場逐漸變得<span class="f">均勻、平行</span>。`;
+  else{const axisDir=lr(cur.Bc.clone().multiplyScalar(S.s).normalize().multiplyScalar(3));const loop=m==='loop';
+    if(INFO.aZ>0.6&&INFO.cross.length){const top=INFO.cross.filter(c=>c.wy>0),bot=INFO.cross.filter(c=>c.wy<0);const d=c=>c&&c.out?'穿出 ⊙':'穿入 ⊗';
+      if(loop)h=`側視（截面）：線圈上方導線電流<span class="c">${d(top[0])}</span>，下方<span class="c">${d(bot[0])}</span>；磁力線各自繞著導線，在中心沿軸<span class="f">指向${axisDir}</span>（右手定則：四指沿電流彎曲，拇指指中心磁場）。`;
+      else h=`側視（截面）：上排<span class="c">${d(top[0])}</span>、下排<span class="c">${d(bot[0])}</span>；管內磁場均勻、平行，<span class="f">指向${axisDir}</span>；磁場從 N 極出來，所以<span class="n">${axisDir}端為 N 極</span>（像條形磁鐵）。`;}
+    else if(INFO.aX>0.6&&INFO.centreOut!==null){h=`沿軸看：電流<span class="c">${INFO.circ==='ccw'?'逆時針':'順時針'}</span>，${loop?'中心':'管內'}磁場<span class="f">${INFO.centreOut?'穿出紙面 ⊙':'穿入紙面 ⊗'}</span>${loop?'':(INFO.centreOut?'，面對的是 <span class="n">N 極</span>':'，面對的是 S 極')}（右手定則：四指沿電流，拇指即磁場）。`;}
+    else h=loop?`環形線圈：四指沿電流方向彎曲，<span class="f">拇指所指就是線圈中心的磁場方向</span>；中心附近磁力線近乎直線，靠近導線處則繞著導線轉圈。`:`螺線管（N = ${S.N} 匝）：管內磁場近似<span class="f">均勻、平行</span>，管外像<span class="n">條形磁鐵</span>，由 N 極出發回到 S 極；右手四指沿電流，拇指指 N 極。`;}
+  if(S.bar&&m==='solenoid')h+=' <span class="n">螺線管外部磁力線和棒狀磁鐵很像：N 極出、S 極入。</span>';
+  if(h!==INFO.cap){$('caption').innerHTML=h;INFO.cap=h;}}
+// ---------- loop ----------
+let tPrev=performance.now();const errs=[];
+function frame(now){const dt=Math.min(0.05,(now-tPrev)/1000);tPrev=now;stepAnim(now);stepMorph(dt);applyCam();camera.updateMatrixWorld();
+  const straight=isStraight();const v=camera.position.clone().sub(CAM.target).normalize();
+  const aT=smooth(0.95,0.9995,Math.abs(v.y)),aS=smooth(0.95,0.9995,Math.sqrt(1-v.y*v.y));const a2=straight?Math.max(aT,aS):0;
+  for(const R of rings){let o=straight&&R.vis?R.base*(1-a2):0;R.m.opacity=o;R.am.opacity=Math.min(1,o*1.4);R.om.opacity=Math.min(1,o*1.4);R.om.visible=S.board;R.g.visible=o>0.01;}
+  const aXv=straight?0:smooth(0.95,0.9995,Math.abs(v.x));if(lineObj)lineObj.visible=!straight&&aXv<0.98;lineMat.opacity=(0.55+0.045*S.I)*(1-aXv);tArrows.visible=!straight&&aXv<0.5;tArrowsO.visible=tArrows.visible&&S.board;
+  compassH.visible=S.compass&&straight&&a2<0.9;compassV.visible=S.compass&&!straight&&aXv<0.5;
+  // bar magnet
+  const barOn=S.bar&&modeName()==='solenoid';barGroup.visible=barOn||barU<1&&S.bar;
+  if(barOn){if(Math.abs(cur.len-barLen)>1e-6)buildBar(cur.len);barU+=Math.sign(barTarget-barU)*Math.min(Math.abs(barTarget-barU),dt/1.6);
+    const off=barU<=0?0:ease(barU)*(cur.len+2*BAR_R+5);barGroup.position.set(0,-off*0.0,0);barGroup.position.x=barNSign()*0+off;
+    barGroup.rotation.y=barNSign()>0?0:Math.PI;barLines.visible=aXv<0.9;barLineMat.opacity=0.95*(1-aXv);
+    lineMat.opacity*=0.55;compassV.children.forEach(g=>g.scale.setScalar(0.55));}
+  else{barGroup.visible=false;if(S.compass)compassV.children.forEach(g=>g.scale.setScalar(0.8));}
+  const vAlign=Math.max(Math.abs(v.z),Math.abs(v.x));
+  handGroup.visible=S.hand&&(straight?a2<0.9:(S.b>0.995&&vAlign<0.97));
+  plane.visible=planeEdge.visible=straight&&aS<0.9;
+  const aZ=straight?0:smooth(0.95,0.9995,Math.abs(v.z));wireMat.opacity=1-0.8*aZ;wireMat.depthWrite=aZ<0.5;wireArrows.visible=aZ<0.5;
+  // charges along wire
+  chargeGroup.visible=S.charge&&aZ<0.5;if(S.charge&&cur.cum){const n=straight?10:Math.min(40,Math.round(10*(cur.turns||1)));{const step=dt*S.s*S.I*CH_SPEED;chargeDist+=step;chargePhase=((chargePhase+step)%cur.tot+cur.tot)%cur.tot;}
+    const nn=Math.min(chargeGroup.children.length,Math.max(1,Math.round(cur.tot/CH_SPACING))),gap=cur.tot/nn;
+    chargeGroup.children.forEach((m,i)=>{m.visible=i<nn;if(i<nn){m.position.copy(atLen(cur.P,cur.cum,(i*gap+chargePhase)%cur.tot).p);}});}
+  renderer.render(scene,camera);drawOverlay();caption();requestAnimationFrame(frame);}
+// ---------- test hook ----------
+window.__mag={setPreset,setDir,setI,setProbe,setProbeV,setMode,setTurns,setBoard:b=>{if(S.board!==b)$('tBoard').click();},setSingle:b=>{if(S.single!==b)$('tSingle').click();},
+  setBend:v=>{const e=$('bend');e.value=v;e.dispatchEvent(new Event('input'));},setStretch:v=>{const e=$('stretch');e.value=v;e.dispatchEvent(new Event('input'));},
+  bendTo:b=>goShape(b,0),setBar:b=>{if(S.bar!==b)$('tBar').click();},
+  isIdle:()=>!anim&&!morph,
+  fieldAt:a=>fieldAt(new THREE.Vector3(...a)).toArray(),
+  state:()=>{const v=camera.position.clone().sub(CAM.target).normalize();return {mode:modeName(),b:S.b,t:S.t,preset:S.preset,s:S.s,I:S.I,camDir:[v.x,v.y,v.z],aT:INFO.aT,aS:INFO.aS,aZ:INFO.aZ,aX:INFO.aX,
+    side:(INFO.sideSyms||[]).map(s=>({x:s.x,out:s.out})),centerX:proj(new THREE.Vector3()).x,wireOut:INFO.wireOut,circ:INFO.circ,cross:INFO.cross,centreOut:INFO.centreOut,NS:INFO.NS,
+    probeR:Math.hypot(S.probeH.x,S.probeH.z),probeB:fieldAt(isStraight()?S.probeH:S.probeV).length(),caption:$('caption').textContent,
+    wire:cur.P.map(p=>p.toArray()),moment:cur.moment.clone().multiplyScalar(S.s).toArray(),Bc:cur.Bc.clone().multiplyScalar(S.s*S.I).toArray(),len:cur.len,nLines:cur.lines.length,
+    ringsVisible:rings.filter(r=>r.g.visible).map(r=>r.y),chargeDist,bar:{visible:barGroup.visible,u:barU,nWorldX:barGroup.localToWorld(new THREE.Vector3(barLen/2,0,0)).x,bx:barGroup.position.x},needlesH:needlesH.filter(n=>n.g.visible).length,
+    colors:{field:'#'+lineMat.color.getHexString(),arrow:'#'+tArrowMat.color.getHexString(),ringArrow:'#'+rings[0].am.color.getHexString(),needleN:'#'+nMatN.color.getHexString(),needleS:'#'+nMatS.color.getHexString()}};}};
+resize();applyTheme();cur=stateFor(0,0,S.N,true);rebuildShape();shapeChanged();setPreset('oblique',true);requestAnimationFrame(frame);
+</script>
+</body>
+</html>
