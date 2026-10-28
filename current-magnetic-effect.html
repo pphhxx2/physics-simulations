@@ -67,7 +67,8 @@ label.sl{font-size:14px;color:var(--muted);min-width:96px}
     <button class="preset" data-p="side">側視（紙面）</button>
     <button class="preset" data-p="top">俯視（從上往下）</button>
     <button class="preset" data-p="bottom">仰視（從下往上）</button>
-   </div></div>
+   </div>
+   <div class="row" style="margin-top:4px"><label class="sl" style="min-width:150px">切換畫法時 3D 保留 <span id="keepVal">30</span>%</label><input type="range" id="keep" min="0" max="100" step="5" value="30"></div></div>
   <div class="sec"><h3>電流</h3>
    <div class="row"><button id="dirUp" class="on">↑ 向上</button><button id="dirDown">↓ 向下</button><button id="dirFlip">⇅ 反轉</button></div>
    <div class="row" style="margin-top:4px"><label class="sl">I = <span id="Ival">5</span> A</label><button class="hold" id="Iminus">－</button><input type="range" id="Islider" min="1" max="10" step="0.5" value="5"><button class="hold" id="Iplus">＋</button></div></div>
@@ -103,7 +104,7 @@ const $=id=>document.getElementById(id);
 const view=$('view'), c3=$('c3'), ov=$('overlay'), ctx=ov.getContext('2d');
 // ---------- state ----------
 const R0=2, LW=2*Math.PI*R0, PITCH=0.62;
-const S={bar:false,realHelix:false,s:1,I:5,b:0,t:0,N:8,single:true,probeH:new THREE.Vector3(2.5,0,0),probeV:new THREE.Vector3(2.6,3.4,0),board:false,hand:true,charge:true,compass:true,preset:'oblique'};
+const S={keep:0.3,bar:false,realHelix:false,s:1,I:5,b:0,t:0,N:8,single:true,probeH:new THREE.Vector3(2.5,0,0),probeV:new THREE.Vector3(2.6,3.4,0),board:false,hand:true,charge:true,compass:true,preset:'oblique'};
 const RADII=[0.8,1.4,2.1,3.0,4.1,5.4];
 const LAYERS=[-2.6,0,2.6];
 const SIDE_LAYERS=[-3.6,-2.7,-1.8,-0.9,0,0.9,1.8,2.7,3.6];
@@ -347,7 +348,7 @@ function probeR(dr){if(isStraight()){const r=Math.hypot(S.probeH.x,S.probeH.z),u
 hold($('rminus'),()=>probeR(-0.1));hold($('rplus'),()=>probeR(0.1));
 function tog(id,key,after){$(id).onclick=()=>{S[key]=!S[key];$(id).classList.toggle('on',S[key]);after&&after();};}
 tog('tHand','hand');tog('tCharge','charge');tog('tCompass','compass');tog('tBoard','board',applyTheme);
-tog('tBar','bar',()=>{barU=1;barTarget=S.bar?0:1;});tog('tReal','realHelix',()=>shapeChanged());tog('tSingle','single',()=>{$('tSingle').textContent=S.single?'只顯示中間層':'顯示三層';shapeChanged();});
+$('keep').oninput=e=>{S.keep=+e.target.value/100;$('keepVal').textContent=e.target.value;};tog('tBar','bar',()=>{barU=1;barTarget=S.bar?0:1;});tog('tReal','realHelix',()=>shapeChanged());tog('tSingle','single',()=>{$('tSingle').textContent=S.single?'只顯示中間層':'顯示三層';shapeChanged();});
 function applyTheme(){document.body.classList.toggle('board',S.board);const P=pal();scene.background=new THREE.Color(P.bg);
   curMat.color.set(P.cur);wireMat.color.set(P.cur);thumbTipMat.color.set(P.cur);planeMat.color.set(P.plane);planeEdgeMat.color.set(P.plane);probeMat.color.set(P.probe);probeMat.emissive.set(P.probe);handMat.color.set(P.hand);
   nMatS.color.set(P.sN);rLineMat.color.set(P.probe);probeArrow.setColor(P.arr);lineMat.color.set(P.fld);tArrowMat.color.set(P.arr);tArrowMat.emissive.set(P.arr);outlineMat.color.set(P.out);
@@ -445,13 +446,14 @@ function drawOverlay(){ctx.clearRect(0,0,W,H);const P=pal();const straight=isStr
     // N / S poles for solenoid
     if(S.t>0.3){const bx=Math.sign(cur.Bc.x*S.s);const nP=new THREE.Vector3(bx*(cur.len/2+1.0),0,0),sP=new THREE.Vector3(-bx*(cur.len/2+1.0),0,0);
       const qn=proj(nP),qs=proj(sP);INFO.NS={nx:qn.x,sx:qs.x,nWorldX:nP.x};ctx.font='bold 34px "Noto Sans TC",sans-serif';ctx.textAlign='center';ctx.lineWidth=6;ctx.strokeStyle=S.board?'#274536':'#ffffff';
-      ctx.globalAlpha=Math.min(1,(S.t-0.3)/0.4)*(1-aX);ctx.textBaseline='middle';ctx.strokeText('N',qn.x,qn.y);ctx.fillStyle='#d62828';ctx.fillText('N',qn.x,qn.y);ctx.strokeText('S',qs.x,qs.y);ctx.fillStyle=S.board?'#e8eef2':'#5a6878';ctx.fillText('S',qs.x,qs.y);ctx.globalAlpha=1;ctx.textBaseline='alphabetic';}
+      ctx.globalAlpha=Math.min(1,(S.t-0.3)/0.4)*(1-aX*(1-S.keep));ctx.textBaseline='middle';ctx.strokeText('N',qn.x,qn.y);ctx.fillStyle='#d62828';ctx.fillText('N',qn.x,qn.y);ctx.strokeText('S',qs.x,qs.y);ctx.fillStyle=S.board?'#e8eef2':'#5a6878';ctx.fillText('S',qs.x,qs.y);ctx.globalAlpha=1;ctx.textBaseline='alphabetic';}
   }
   if(barGroup.visible&&!(INFO.aX>0.5)){barGroup.updateMatrixWorld();ctx.font='bold 26px "Noto Sans TC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     for(const [lx,t,c] of [[barLen/4,'N','#ffffff'],[-barLen/4,'S','#1b2430']]){const q=proj(barGroup.localToWorld(new THREE.Vector3(lx,0,0)));ctx.fillStyle=c;ctx.fillText(t,q.x,q.y);}ctx.textBaseline='alphabetic';}
   ctx.shadowBlur=0;ctx.font='bold 22px "Noto Sans TC",sans-serif';ctx.textAlign='left';
   if(straight&&INFO.aT<0.5){const wt=proj(new THREE.Vector3(0,5.6*S.s,0));ctx.fillStyle=P.curS;ctx.fillText('I',wt.x+16,wt.y+8);}
-  const hideProbe=straight?INFO.aS>0.9:INFO.aX>0.5;probe.visible=probeArrow.visible=!hideProbe;
+  const pa=straight?Math.max(INFO.aS,INFO.aT):INFO.aX;const pf=1-pa*(1-S.keep);INFO.probeFade=pf;const hideProbe=pa>0.5;probe.visible=probeArrow.visible=pf>0.01;
+  probeMat.opacity=pf;probeMat.depthWrite=pf>0.99;probeArrow.line.material.transparent=probeArrow.cone.material.transparent=true;probeArrow.line.material.opacity=probeArrow.cone.material.opacity=pf;
   if(!hideProbe){const pr=straight?S.probeH:S.probeV;const pp=proj(pr.clone().add(new THREE.Vector3(0,0.3,0)));ctx.fillStyle=S.board?'#e7c6ff':'#7a2fc0';ctx.font='bold 18px "Noto Sans TC",sans-serif';
     ctx.fillText(`探針 |B|=${fieldAt(pr).length().toFixed(2)}`,pp.x+14,pp.y-18);}
 }
@@ -480,19 +482,20 @@ let tPrev=performance.now();const errs=[];
 function frame(now){const dt=Math.min(0.05,(now-tPrev)/1000);tPrev=now;stepAnim(now);stepMorph(dt);applyCam();camera.updateMatrixWorld();
   const straight=isStraight();const v=camera.position.clone().sub(CAM.target).normalize();
   const aT=smooth(0.95,0.9995,Math.abs(v.y)),aS=smooth(0.95,0.9995,Math.sqrt(1-v.y*v.y));const a2=straight?Math.max(aT,aS):0;
-  for(const R of rings){let o=straight&&R.vis?R.base*(1-a2):0;R.m.opacity=o;R.am.opacity=Math.min(1,o*1.4);R.om.opacity=Math.min(1,o*1.4);R.om.visible=S.board;R.g.visible=o>0.01;}
-  const aXv=straight?0:smooth(0.95,0.9995,Math.abs(v.x));if(lineObj)lineObj.visible=!straight&&aXv<0.98;lineMat.opacity=(0.55+0.045*S.I)*(1-aXv);tArrows.visible=!straight&&aXv<0.5;tArrowsO.visible=tArrows.visible&&S.board;
-  compassH.visible=S.compass&&straight&&a2<0.9;compassV.visible=S.compass&&!straight&&aXv<0.5;
+  const fS=1-a2*(1-S.keep);INFO.fade=fS;for(const R of rings){let o=straight&&R.vis?R.base*fS:0;R.m.opacity=o;R.am.opacity=Math.min(1,o*1.4);R.om.opacity=Math.min(1,o*1.4);R.om.visible=S.board;R.g.visible=o>0.01;R.m.depthWrite=R.am.depthWrite=fS>0.99;}
+  const aXv=straight?0:smooth(0.95,0.9995,Math.abs(v.x));const fX=1-aXv*(1-S.keep);if(!straight)INFO.fade=fX;if(lineObj)lineObj.visible=!straight&&fX>0.01;lineMat.opacity=(0.55+0.045*S.I)*fX;INFO.lineFade=straight?fS:fX;
+  tArrows.visible=!straight&&fX>0.01;tArrowMat.transparent=true;tArrowMat.opacity=fX;tArrowMat.depthWrite=fX>0.99;outlineMat.opacity=fX;tArrowsO.visible=tArrows.visible&&S.board;
+  const fC=straight?fS:fX;compassH.visible=S.compass&&straight&&fC>0.01;compassV.visible=S.compass&&!straight&&fC>0.01;for(const mm of [nMatN,nMatS,pivotMat]){mm.transparent=true;mm.opacity=fC;mm.depthWrite=fC>0.99;}
   // bar magnet
   const barOn=S.bar&&modeName()==='solenoid';barGroup.visible=barOn||barU<1&&S.bar;
   if(barOn){if(Math.abs(cur.len-barLen)>1e-6)buildBar(cur.len);barU+=Math.sign(barTarget-barU)*Math.min(Math.abs(barTarget-barU),dt/1.6);
     const off=barU<=0?0:ease(barU)*(cur.len+2*BAR_R+5);barGroup.position.set(0,-off*0.0,0);barGroup.position.x=barNSign()*0+off;
-    barGroup.rotation.y=barNSign()>0?0:Math.PI;barLines.visible=aXv<0.9;barLineMat.opacity=0.95*(1-aXv);
+    barGroup.rotation.y=barNSign()>0?0:Math.PI;barLines.visible=fX>0.01;barLineMat.opacity=0.95*fX;
     lineMat.opacity*=0.55;compassV.children.forEach(g=>g.scale.setScalar(0.55));}
   else{barGroup.visible=false;if(S.compass)compassV.children.forEach(g=>g.scale.setScalar(0.8));}
   const vAlign=Math.max(Math.abs(v.z),Math.abs(v.x));
-  handGroup.visible=S.hand&&(straight?a2<0.9:(S.b>0.995&&vAlign<0.97));
-  plane.visible=planeEdge.visible=straight&&aS<0.9;
+  const fH=straight?1-a2*(1-S.keep*0.4):1-smooth(0.95,0.9995,vAlign)*(1-S.keep*0.4); /* hand sits on the axis: fainter so it never competes with the symbols */ handGroup.visible=S.hand&&fH>0.01&&(straight||S.b>0.995);handMat.transparent=thumbTipMat.transparent=true;handMat.opacity=thumbTipMat.opacity=fH;handMat.depthWrite=thumbTipMat.depthWrite=fH>0.99;
+  plane.visible=planeEdge.visible=straight&&fS>0.01;planeMat.opacity=0.12*fS;planeEdgeMat.opacity=0.6*fS;
   const aZ=straight?0:smooth(0.95,0.9995,Math.abs(v.z));wireMat.opacity=1-0.8*aZ;wireMat.depthWrite=aZ<0.5;wireArrows.visible=aZ<0.5;
   // charges along wire
   chargeGroup.visible=S.charge&&aZ<0.5;if(S.charge&&cur.cum){const n=straight?10:Math.min(40,Math.round(10*(cur.turns||1)));{const step=dt*S.s*S.I*CH_SPEED;chargeDist+=step;chargePhase=((chargePhase+step)%cur.tot+cur.tot)%cur.tot;}
@@ -502,15 +505,16 @@ function frame(now){const dt=Math.min(0.05,(now-tPrev)/1000);tPrev=now;stepAnim(
 // ---------- test hook ----------
 window.__mag={setPreset,setDir,setI,setProbe,setProbeV,setMode,setTurns,setBoard:b=>{if(S.board!==b)$('tBoard').click();},setSingle:b=>{if(S.single!==b)$('tSingle').click();},
   setBend:v=>{const e=$('bend');e.value=v;e.dispatchEvent(new Event('input'));},setStretch:v=>{const e=$('stretch');e.value=v;e.dispatchEvent(new Event('input'));},
-  bendTo:b=>goShape(b,0),setBar:b=>{if(S.bar!==b)$('tBar').click();},
+  bendTo:b=>goShape(b,0),setKeep:v=>{const e=$('keep');e.value=v;e.dispatchEvent(new Event('input'));},setBar:b=>{if(S.bar!==b)$('tBar').click();},
   isIdle:()=>!anim&&!morph,
   fieldAt:a=>fieldAt(new THREE.Vector3(...a)).toArray(),
   state:()=>{const v=camera.position.clone().sub(CAM.target).normalize();return {mode:modeName(),b:S.b,t:S.t,preset:S.preset,s:S.s,I:S.I,camDir:[v.x,v.y,v.z],aT:INFO.aT,aS:INFO.aS,aZ:INFO.aZ,aX:INFO.aX,
     side:(INFO.sideSyms||[]).map(s=>({x:s.x,out:s.out})),centerX:proj(new THREE.Vector3()).x,wireOut:INFO.wireOut,circ:INFO.circ,cross:INFO.cross,centreOut:INFO.centreOut,NS:INFO.NS,
     probeR:Math.hypot(S.probeH.x,S.probeH.z),probeB:fieldAt(isStraight()?S.probeH:S.probeV).length(),caption:$('caption').textContent,
     wire:cur.P.map(p=>p.toArray()),moment:cur.moment.clone().multiplyScalar(S.s).toArray(),Bc:cur.Bc.clone().multiplyScalar(S.s*S.I).toArray(),len:cur.len,nLines:cur.lines.length,
-    ringsVisible:rings.filter(r=>r.g.visible).map(r=>r.y),chargeDist,bar:{visible:barGroup.visible,u:barU,nWorldX:barGroup.localToWorld(new THREE.Vector3(barLen/2,0,0)).x,bx:barGroup.position.x},needlesH:needlesH.filter(n=>n.g.visible).length,
+    fade:INFO.fade,lineFade:INFO.lineFade,probeFade:INFO.probeFade,keep:S.keep,ringsVisible:rings.filter(r=>r.g.visible).map(r=>r.y),chargeDist,bar:{visible:barGroup.visible,u:barU,nWorldX:barGroup.localToWorld(new THREE.Vector3(barLen/2,0,0)).x,bx:barGroup.position.x},needlesH:needlesH.filter(n=>n.g.visible).length,
     colors:{field:'#'+lineMat.color.getHexString(),arrow:'#'+tArrowMat.color.getHexString(),ringArrow:'#'+rings[0].am.color.getHexString(),needleN:'#'+nMatN.color.getHexString(),needleS:'#'+nMatS.color.getHexString()}};}};
+for(const mm of [handMat,thumbTipMat,nMatN,nMatS,pivotMat,tArrowMat,probeMat,probeArrow.line.material,probeArrow.cone.material]){mm.transparent=true;mm.needsUpdate=true;}
 resize();applyTheme();cur=stateFor(0,0,S.N,true);rebuildShape();shapeChanged();setPreset('oblique',true);requestAnimationFrame(frame);
 </script>
 </body>
