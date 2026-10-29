@@ -405,7 +405,7 @@ function sym(x,y,out,R,col,ring){ctx.strokeStyle=ctx.fillStyle=col;ctx.lineWidth
 function drawOverlay(){ctx.clearRect(0,0,W,H);const P=pal();const straight=isStraight();
   const v=camera.position.clone().sub(CAM.target).normalize();INFO.v=v;
   ctx.lineCap='round';ctx.lineJoin='round';ctx.shadowBlur=S.board?3:0;ctx.shadowColor='rgba(255,255,255,.35)';
-  INFO.sideSyms=[];INFO.wireOut=null;INFO.circ=null;INFO.cross=[];INFO.centreOut=null;INFO.NS=null;
+  INFO.sideSyms=[];INFO.wireOut=null;INFO.circ=null;INFO.cross=[];INFO.centreOut=null;INFO.axisLabels=null;INFO.NS=null;
   const big='bold 24px "Noto Sans TC",sans-serif';
   if(straight){
     const aT=smooth(0.95,0.9995,Math.abs(v.y)),aS=smooth(0.95,0.9995,Math.sqrt(1-v.y*v.y));INFO.aT=aT;INFO.aS=aS;
@@ -433,12 +433,12 @@ function drawOverlay(){ctx.clearRect(0,0,W,H);const P=pal();const straight=isStr
       const out=dz*v.z>0;const q=proj(p);INFO.cross.push({x:q.x,y:q.y,out,wy:p.y,wx:p.x});}}
     if(aZ>0.001){ctx.globalAlpha=aZ;for(const c of INFO.cross)sym(c.x,c.y,c.out,15,P.curS,true);ctx.globalAlpha=1;}
     if(aX>0.001&&S.b>0.995){ctx.globalAlpha=aX;const c=proj(new THREE.Vector3());const out=cur.Bc.x*S.s*v.x>0;INFO.centreOut=out;
-      sym(c.x,c.y,out,22,P.fldS,true);ctx.font='bold 22px "Noto Sans TC",sans-serif';ctx.textAlign='left';ctx.fillStyle=P.fldS;
+      {const hc=S.board?'#274536':'#ffffff';ctx.save();ctx.lineWidth=14;ctx.strokeStyle=ctx.fillStyle=hc;if(out){ctx.beginPath();ctx.arc(c.x,c.y,46*0.38+4,0,7);ctx.fill();}else{const k=36*0.6;ctx.beginPath();ctx.moveTo(c.x-k,c.y-k);ctx.lineTo(c.x+k,c.y+k);ctx.moveTo(c.x+k,c.y-k);ctx.lineTo(c.x-k,c.y+k);ctx.stroke();}ctx.restore();}sym(c.x,c.y,out,out?46:36,P.fldS,false);ctx.font='bold 22px "Noto Sans TC",sans-serif';ctx.textAlign='left';ctx.fillStyle=P.fldS;
       const rs=Math.abs(proj(new THREE.Vector3(0,1,0)).y-c.y); // px per unit
       for(let k=0;k<6;k++){const a=k*Math.PI/3+Math.PI/6;sym(c.x+Math.cos(a)*rs*1.1,c.y+Math.sin(a)*rs*1.1,out,12,P.fldS,false);}
       for(let k=0;k<12;k++){const a=k*Math.PI/6;sym(c.x+Math.cos(a)*rs*3.3,c.y+Math.sin(a)*rs*3.3,!out,16,P.fldS,false);}
       for(let k=0;k<4;k++){const i=Math.min(PP.length-2,Math.floor((k+0.5)/4/(cur.turns||1)*(PP.length-1)));const q=proj(PP[i]),qb=proj(PP[i+1]);let dx=(qb.x-q.x)*S.s,dy=(qb.y-q.y)*S.s;const n=Math.hypot(dx,dy)||1;arrowHead(q.x,q.y,dx/n,dy/n,30,{arrS:P.curS});}ctx.fillStyle=P.fldS;
-      ctx.strokeStyle=S.board?'#274536':'#ffffff';ctx.lineWidth=5;const t1=(S.t>0.004?'管內':'中心')+(out?' B 出紙面 ⊙':' B 入紙面 ⊗'),t2=out?'外圍回流 入紙面 ×':'外圍回流 出紙面 ·';
+      ctx.strokeStyle=S.board?'#274536':'#ffffff';ctx.lineWidth=5;const t1=(S.t>0.004?'管內':'中心')+(out?' B 出紙面 ·':' B 入紙面 ×'),t2=out?'外圍回流 入紙面 ×':'外圍回流 出紙面 ·';INFO.axisLabels=[t1,t2];
       ctx.textAlign='center';ctx.strokeText(t1,c.x,c.y-rs*R0-22);ctx.fillText(t1,c.x,c.y-rs*R0-22);ctx.strokeText(t2,c.x,Math.min(H-12,c.y+rs*3.9));ctx.fillText(t2,c.x,Math.min(H-12,c.y+rs*3.9));ctx.textAlign='left';
       // current circulation as seen
       let circ=0;const cc=proj(new THREE.Vector3(0,0,0));for(let i=0;i<PP.length-1;i+=3){const q=proj(PP[i]),qb=proj(PP[i+1]);const dx=(qb.x-q.x)*S.s,dy=(qb.y-q.y)*S.s;circ+=(q.x-cc.x)*(-dy)+(q.y-cc.y)*dx;}
@@ -446,7 +446,7 @@ function drawOverlay(){ctx.clearRect(0,0,W,H);const P=pal();const straight=isStr
     // N / S poles for solenoid
     if(S.t>0.3){const bx=Math.sign(cur.Bc.x*S.s);const nP=new THREE.Vector3(bx*(cur.len/2+1.0),0,0),sP=new THREE.Vector3(-bx*(cur.len/2+1.0),0,0);
       const qn=proj(nP),qs=proj(sP);INFO.NS={nx:qn.x,sx:qs.x,nWorldX:nP.x};ctx.font='bold 34px "Noto Sans TC",sans-serif';ctx.textAlign='center';ctx.lineWidth=6;ctx.strokeStyle=S.board?'#274536':'#ffffff';
-      ctx.globalAlpha=Math.min(1,(S.t-0.3)/0.4)*(1-aX*(1-S.keep));ctx.textBaseline='middle';ctx.strokeText('N',qn.x,qn.y);ctx.fillStyle='#d62828';ctx.fillText('N',qn.x,qn.y);ctx.strokeText('S',qs.x,qs.y);ctx.fillStyle=S.board?'#e8eef2':'#5a6878';ctx.fillText('S',qs.x,qs.y);ctx.globalAlpha=1;ctx.textBaseline='alphabetic';}
+      ctx.globalAlpha=Math.min(1,(S.t-0.3)/0.4)*(1-aX); /* on-axis labels would sit on the centre symbol */ctx.textBaseline='middle';ctx.strokeText('N',qn.x,qn.y);ctx.fillStyle='#d62828';ctx.fillText('N',qn.x,qn.y);ctx.strokeText('S',qs.x,qs.y);ctx.fillStyle=S.board?'#e8eef2':'#5a6878';ctx.fillText('S',qs.x,qs.y);ctx.globalAlpha=1;ctx.textBaseline='alphabetic';}
   }
   if(barGroup.visible&&!(INFO.aX>0.5)){barGroup.updateMatrixWorld();ctx.font='bold 26px "Noto Sans TC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     for(const [lx,t,c] of [[barLen/4,'N','#ffffff'],[-barLen/4,'S','#1b2430']]){const q=proj(barGroup.localToWorld(new THREE.Vector3(lx,0,0)));ctx.fillStyle=c;ctx.fillText(t,q.x,q.y);}ctx.textBaseline='alphabetic';}
@@ -473,7 +473,7 @@ function caption(){const v=INFO.v,m=modeName();let h;
     if(INFO.aZ>0.6&&INFO.cross.length){const top=INFO.cross.filter(c=>c.wy>0),bot=INFO.cross.filter(c=>c.wy<0);const d=c=>c&&c.out?'穿出 ⊙':'穿入 ⊗';
       if(loop)h=`側視（截面）：線圈上方導線電流<span class="c">${d(top[0])}</span>，下方<span class="c">${d(bot[0])}</span>；磁力線各自繞著導線，在中心沿軸<span class="f">指向${axisDir}</span>（右手定則：四指沿電流彎曲，拇指指中心磁場）。`;
       else h=`側視（截面）：上排<span class="c">${d(top[0])}</span>、下排<span class="c">${d(bot[0])}</span>；管內磁場均勻、平行，<span class="f">指向${axisDir}</span>；磁場從 N 極出來，所以<span class="n">${axisDir}端為 N 極</span>（像條形磁鐵）。`;}
-    else if(INFO.aX>0.6&&INFO.centreOut!==null){h=`沿軸看：電流<span class="c">${INFO.circ==='ccw'?'逆時針':'順時針'}</span>，${loop?'中心':'管內'}磁場<span class="f">${INFO.centreOut?'穿出紙面 ⊙':'穿入紙面 ⊗'}</span>${loop?'':(INFO.centreOut?'，面對的是 <span class="n">N 極</span>':'，面對的是 S 極')}（右手定則：四指沿電流，拇指即磁場）。`;}
+    else if(INFO.aX>0.6&&INFO.centreOut!==null){h=`沿軸看：電流<span class="c">${INFO.circ==='ccw'?'逆時針':'順時針'}</span>，${loop?'中心':'管內'}磁場<span class="f">${INFO.centreOut?'穿出紙面 ·':'穿入紙面 ×'}</span>${loop?'':(INFO.centreOut?'，面對的是 <span class="n">N 極</span>':'，面對的是 S 極')}（右手定則：四指沿電流，拇指即磁場）。`;}
     else h=loop?`環形線圈：四指沿電流方向彎曲，<span class="f">拇指所指就是線圈中心的磁場方向</span>；中心附近磁力線近乎直線，靠近導線處則繞著導線轉圈。`:`螺線管（N = ${S.N} 匝）：管內磁場近似<span class="f">均勻、平行</span>，管外像<span class="n">條形磁鐵</span>，由 N 極出發回到 S 極；右手四指沿電流，拇指指 N 極。`;}
   if(S.bar&&m==='solenoid')h+=' <span class="n">螺線管外部磁力線和棒狀磁鐵很像：N 極出、S 極入。</span>';
   if(h!==INFO.cap){$('caption').innerHTML=h;INFO.cap=h;}}
@@ -509,7 +509,7 @@ window.__mag={setPreset,setDir,setI,setProbe,setProbeV,setMode,setTurns,setBoard
   isIdle:()=>!anim&&!morph,
   fieldAt:a=>fieldAt(new THREE.Vector3(...a)).toArray(),
   state:()=>{const v=camera.position.clone().sub(CAM.target).normalize();return {mode:modeName(),b:S.b,t:S.t,preset:S.preset,s:S.s,I:S.I,camDir:[v.x,v.y,v.z],aT:INFO.aT,aS:INFO.aS,aZ:INFO.aZ,aX:INFO.aX,
-    side:(INFO.sideSyms||[]).map(s=>({x:s.x,out:s.out})),centerX:proj(new THREE.Vector3()).x,wireOut:INFO.wireOut,circ:INFO.circ,cross:INFO.cross,centreOut:INFO.centreOut,NS:INFO.NS,
+    side:(INFO.sideSyms||[]).map(s=>({x:s.x,out:s.out})),centerX:proj(new THREE.Vector3()).x,wireOut:INFO.wireOut,circ:INFO.circ,cross:INFO.cross,centreOut:INFO.centreOut,axisLabels:INFO.axisLabels,NS:INFO.NS,
     probeR:Math.hypot(S.probeH.x,S.probeH.z),probeB:fieldAt(isStraight()?S.probeH:S.probeV).length(),caption:$('caption').textContent,
     wire:cur.P.map(p=>p.toArray()),moment:cur.moment.clone().multiplyScalar(S.s).toArray(),Bc:cur.Bc.clone().multiplyScalar(S.s*S.I).toArray(),len:cur.len,nLines:cur.lines.length,
     fade:INFO.fade,lineFade:INFO.lineFade,probeFade:INFO.probeFade,keep:S.keep,ringsVisible:rings.filter(r=>r.g.visible).map(r=>r.y),chargeDist,bar:{visible:barGroup.visible,u:barU,nWorldX:barGroup.localToWorld(new THREE.Vector3(barLen/2,0,0)).x,bx:barGroup.position.x},needlesH:needlesH.filter(n=>n.g.visible).length,
