@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>光的干涉：兩支雷射筆的疊加（平鎮高中物理互動教學）</title>
+<style>
+  :root { --bg:#eef2f7; --ink:#1f2933; --muted:#5b6776; --line:#c5cdd8; --card:rgba(255,255,255,.96);
+          --c1:#e5432d; --c2:#2f6fdb; --accent:#2f6fdb; --b1:#d99a00; --b2:#16a34a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+              font-family:'微軟正黑體','Noto Sans TC','PingFang TC',sans-serif; overflow:hidden; }
+  #app { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+  #topbar { flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:6px 12px; background:#fff;
+            border-bottom:1px solid var(--line); min-height:44px; }
+  #topbar h1 { font-size:18px; margin:0; white-space:nowrap; }
+  #topbar .sub { font-size:12.5px; color:var(--muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #main { flex:1 1 auto; min-height:0; display:flex; }
+  #stage { position:relative; flex:1 1 auto; min-width:0; overflow:hidden; }
+  #canvas-wrap { position:absolute; inset:0; }
+  #canvas-wrap canvas { display:block; touch-action:none; }
+  #side { flex:0 0 clamp(340px,34vw,480px); width:clamp(340px,34vw,480px); overflow-y:auto; background:#f7f9fc; border-left:1px solid var(--line);
+          padding:8px 10px 14px; }
+  #side.collapsed { display:none; }
+
+  button { white-space:nowrap; background:#e3e8ef; color:var(--ink); border:1px solid #cdd5df; padding:6px 10px; border-radius:6px; cursor:pointer;
+           font:inherit; font-size:13.5px; transition:background .15s; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
+  button:hover { background:#d6dde8; }
+  button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.small { padding:4px 7px; font-size:12.5px; }
+  button.warn { background:#fff4d6; border-color:#e8c76a; }
+  .seg { display:inline-flex; }
+  .seg button { border-radius:0; margin-left:-1px; }
+  .seg button:first-child { border-radius:6px 0 0 6px; margin-left:0; }
+  .seg button:last-child { border-radius:0 6px 6px 0; }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:9px; padding:8px 10px; margin-bottom:8px; }
+  .card h3 { margin:0 0 6px; font-size:14px; display:flex; align-items:center; justify-content:space-between; }
+  .row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:4px 0; }
+  .row label { font-size:13px; color:var(--ink); }
+  .row.tight { gap:3px; }
+  input[type=range] { flex:1 1 120px; min-width:90px; accent-color:var(--accent); height:22px; }
+  input[type=number] { width:78px; padding:3px 4px; font:inherit; font-size:13px; border:1px solid var(--line); border-radius:5px; }
+  .tag1 { color:var(--c1); font-weight:700; } .tag2 { color:var(--c2); font-weight:700; }
+  .dim { color:var(--muted); font-size:12.5px; }
+
+  #chip b.inc { color:#0f766e; } button:disabled { opacity:.45; cursor:not-allowed; }
+  #fr-info { min-height:4.6em; }
+
+  /* 舞台上的浮動元件 */
+  #viewbar { position:absolute; left:10px; top:10px; display:flex; gap:5px; align-items:center; flex-wrap:wrap; z-index:6; max-width:calc(100% - 20px); }
+  #viewbar button { background:rgba(255,255,255,.94); }
+  #viewbar button.active { background:var(--accent); }
+  #viewbar .zoom-btn { padding:6px 0; width:34px; font-size:16px; line-height:1; }
+  #chip { position:absolute; right:10px; top:10px; z-index:6; background:rgba(255,255,255,.94); border:1px solid var(--line);
+          border-radius:18px; padding:5px 12px; font-size:13.5px; display:flex; gap:10px; align-items:center; pointer-events:none; }
+  #chip b.dest { color:#1e3a8a; } #chip b.cons { color:#c2410c; }
+  #overlay { position:absolute; inset:0; pointer-events:none; z-index:4; width:100%; height:100%; }
+  .lbl { position:absolute; z-index:5; pointer-events:none; font-size:13px; font-weight:700; padding:1px 7px; border-radius:10px;
+         background:rgba(255,255,255,.86); border:1px solid var(--line); transform:translate(-50%,-100%); white-space:nowrap; }
+  #scrctl { position:absolute; z-index:6; display:flex; flex-direction:column; align-items:center; padding:3px 2px; background:rgba(255,255,255,.92); border:1.5px solid #44546a; border-radius:10px; font-size:11px; font-weight:700; box-shadow:0 1px 5px rgba(31,41,51,.2); touch-action:none; user-select:none; opacity:.55; transition:opacity .15s; white-space:nowrap; }
+  #scrctl:hover, #scrctl:focus-within, #scrctl.dragging { opacity:1; }
+  #scrctl .sbody { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  #scrctl input { writing-mode:vertical-lr; direction:rtl; width:20px; height:72px; min-width:0; flex:none; margin:0; padding:0; }
+  #scrctl b { font-variant-numeric:tabular-nums; font-size:10.5px; }
+  #scr-icon { display:none; padding:0; width:24px; height:24px; border-radius:50%; font-size:15px; line-height:1; background:#fff; border:none; }
+  #scrctl.mini { padding:1px; border-radius:50%; } #scrctl.mini #scr-icon { display:block; } #scrctl.mini .sbody { display:none; }
+  .frrow { flex-wrap:nowrap; } .frrow label { white-space:nowrap; } .frrow input[type=number] { width:64px; flex:none; }
+  .frbtns { display:flex; gap:3px; flex:1 1 auto; } .frbtns button { flex:1 1 0; min-width:28px; padding:4px 2px; font-weight:700; font-size:14px; }
+    .frpre { flex-wrap:nowrap; } .frpre button { flex:1 1 0; padding:4px 2px; font-weight:700; } .frpre button.active { background:var(--accent); color:#fff; }
+  #fr-reset { flex:1.8 1 0; background:#fde68a; border-color:#d4a514; color:#3b2a00; font-weight:700; }
+  #stagehint { position:absolute; left:10px; bottom:6px; right:10px; z-index:3; font-size:12px; color:var(--muted); pointer-events:none; max-width:calc(100% - 20px); } #stagehint i { display:inline-block; width:14px; height:4px; border-radius:2px; vertical-align:middle; margin:0 3px 0 8px; }
+
+  /* 放大鏡面板（右側欄最上方） */
+  #mag { position:relative; background:#fff; border:2px solid #44546a; border-radius:10px; box-shadow:0 2px 10px rgba(31,41,51,.18); overflow:hidden; margin-bottom:8px; }
+  #mag .mh { white-space:nowrap; display:flex; align-items:center; gap:6px; padding:5px 8px; background:#44546a; color:#fff; font-size:14px; font-weight:700; }
+  #mag .mh .sp { flex:1; }
+  #mag .mh button { padding:2px 8px; font-size:12.5px; background:#e8edf4; }
+  #mag .mh button.active { background:#ffd24a; color:#222; border-color:#ffd24a; }
+  #mag.collapsed .mbody { display:none; }
+  #lens-hole { position:relative; width:100%; height:clamp(140px, calc(100vh - 625px), 330px); background:#f2f5f9; }
+  #lens-hole canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #lens-hole .msg { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:#e9eef5; color:#5b6776; font-size:14px; text-align:center; padding:10px; z-index:2; }
+  #mapcv { display:none; width:100%; height:clamp(140px, calc(100vh - 625px), 330px); background:#f4f4f4; }
+  .legendrow { background:#fff; display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px; padding:4px 8px; font-size:12.5px; border-top:1px solid var(--line); }
+  .legendrow i { display:inline-block; width:12px; height:4px; vertical-align:middle; margin-right:3px; border-radius:2px; }
+  .mrow { background:#fff; display:flex; align-items:stretch; gap:8px; padding:8px 8px; border-top:1px solid var(--line); }
+  #bbox { flex:0 0 112px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:12px; text-align:center; color:var(--muted); }
+  #tgwrap { flex:1 1 auto; min-width:0; position:relative; height:132px; }
+  #tgraph { position:absolute; inset:0; width:100%; height:100%; display:block; background:#fff; border:1px solid var(--line); border-radius:4px; }
+  #bdot { width:104px; height:104px; border-radius:50%; border:3px solid #44546a; background:#000; flex:none; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:20px; text-shadow:0 0 4px #000, 0 0 2px #000; }
+  #btxt { line-height:1.3; }
+  .mapsel { background:#fff; display:none; padding:3px 8px; font-size:12px; gap:4px; align-items:center; border-top:1px solid var(--line); }
+
+  /* 說明 */
+  #help { position:fixed; inset:0; z-index:50; background:rgba(31,41,51,.45); display:none; align-items:center; justify-content:center; padding:14px; }
+  #help.show { display:flex; }
+  #help .box { color:#1f2933; background:#fff; border-radius:12px; max-width:760px; width:100%; max-height:90vh; overflow:auto; padding:16px 20px; line-height:1.7; font-size:14.5px; }
+  #help h2 { margin:0 0 6px; font-size:20px; } #help h4 { margin:12px 0 2px; font-size:15px; color:#1e3a8a; }
+  #help p { margin:3px 0; } #help code { background:#eef2f7; padding:0 4px; border-radius:3px; }
+
+  #stage.narrow #chip { top:48px; } #stage.narrow #chip .opt { display:none; } #stage.tiny #chip { top:auto; bottom:8px; right:auto; left:50%; transform:translateX(-50%); white-space:nowrap; } #stage.tiny #stagehint { display:none; }
+  #fine2, #fine1 { flex-wrap:nowrap; } #fine2 button, #fine1 button { flex:1 1 0; padding:4px 2px; }
+  @media (max-width: 1100px) and (min-width:821px) { #topbar .sub { display:none; } }
+  @media (max-width: 820px) {
+    #topbar h1 { font-size:15px; white-space:normal; flex:1; } #topbar { padding:4px 8px; gap:6px; } #topbar button { padding:4px 8px; font-size:12.5px; }
+    #main { flex-direction:column; }
+    #side { flex:0 0 auto; width:100%; max-height:46vh; border-left:none; border-top:1px solid var(--line); }
+    #topbar .sub { display:none; }
+    #lens-hole, #mapcv { height:170px; } #bbox { flex-basis:96px; } #bdot { width:84px; height:84px; font-size:17px; } #tgwrap { height:110px; }
+    #viewbar button { padding:4px 7px; font-size:12px; }
+  }
+  @media (max-height: 640px) { #lens-hole, #mapcv { height:150px; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <h1>🔦 光的干涉：兩支雷射筆的疊加</h1>
+    <div class="sub">拖曳雷射筆（或旋鈕）旋轉 · 滾輪縮放 · 把角度調到「完全破壞性」，看交會點一直是暗的</div>
+    <button id="btn-help">❓ 說明</button>
+    <button id="btn-side">▼ 收合面板</button>
+  </div>
+  <div id="main">
+    <section id="stage">
+      <div id="canvas-wrap"></div>
+      <svg id="overlay"><circle id="ring" r="30" fill="none" stroke="#111827" stroke-width="2.5" stroke-dasharray="6 4" style="display:none"/></svg>
+      <div id="viewbar">
+        <button type="button" id="btn-nav-rotate" class="active" title="按住拖曳：轉動視角">⟳ 轉動</button>
+        <button type="button" id="btn-nav-pan" title="按住拖曳：平移視角">✥ 平移</button>
+        <button type="button" id="btn-zoom-out" class="zoom-btn" aria-label="縮小" title="縮小（可按住連續縮小）">－</button>
+        <button type="button" id="btn-zoom-in" class="zoom-btn" aria-label="放大" title="放大（可按住連續放大）">＋</button>
+        <button type="button" id="btn-view-reset" title="恢復預設視角">↺ 重置視角</button>
+        <button type="button" id="t-play2" title="暫停／播放時間">⏸ 暫停</button>
+      </div>
+      <div id="chip"><span class="opt">Δ=<b id="chip-d">–</b>λ</span><span class="opt">Δφ=<b id="chip-p">–</b></span><b id="chip-r">–</b></div>
+      <div class="lbl" id="lbl1" style="color:var(--c1)">雷射 1</div>
+      <div class="lbl" id="lbl2" style="color:var(--c2)">雷射 2（可轉動）</div>
+      <div class="lbl" id="lblC" style="display:none">交會點</div>
+      <div class="lbl" id="lblS" style="display:none">屏幕</div>
+      <div id="scrctl" style="display:none" title="屏幕透明度（拖動可從背後觀察亮暗）"><button id="scr-icon" type="button" title="屏幕透明度">◐</button><div class="sbody"><span>透明</span><input type="range" id="r-scrt" min="0" max="100" step="1" value="0"><b id="v-scrt">0%</b></div></div>
+      <div id="stagehint"></div>
+    </section>
+
+    <aside id="side">
+      <div id="mag">
+        <div class="mh"><span>🔍 放大鏡</span><span class="sp"></span>
+          <button id="tab-3d" class="active" type="button">3D近拍</button><button id="tab-map" type="button">場圖</button>
+          <button id="mag-toggle" type="button">▼收合</button></div>
+        <div class="mbody">
+          <div id="lens-hole"><div class="msg" id="lens-msg">尚無交會點<br>請轉動雷射 2 讓兩光束相交</div></div>
+          <canvas id="mapcv" width="440" height="260"></canvas>
+          <div class="mapsel" id="mapsel"><span>E 場：</span>
+            <span class="seg"><button class="small active" data-map="sum" type="button">E₁+E₂</button><button class="small" data-map="1" type="button">E₁</button><button class="small" data-map="2" type="button">E₂</button></span>
+            <span class="dim">紅＋ 藍－ 灰≈0（高速時改顯示平均亮度）</span></div>
+          <div class="legendrow"><span><i style="background:var(--c1)"></i>E₁</span><span><i style="background:var(--c2)"></i>E₂</span><span><i style="background:#c026d3;height:6px"></i>E₁+E₂</span><span class="dim">箭頭：<b style="color:#e0201a">E₁</b> <b style="color:#1d5fe0">E₂</b> 白＝合成</span>
+            <span style="margin-left:auto"><button class="small" id="lens-out" type="button">－</button> 近拍 <button class="small" id="lens-in" type="button">＋</button></span></div>
+          <div class="mrow">
+            <div id="bbox"><div id="bdot">0%</div><div id="btxt">交會點亮度</div></div>
+            <div id="tgwrap"><canvas id="tgraph"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span>② 轉動雷射筆</span><span class="dim">θ：與＋x 方向夾角</span></h3>
+        <div class="row"><label class="tag2">雷射2 角度 θ₂</label><input type="number" id="n-a2" step="0.01"> °</div>
+        <div class="row"><input type="range" id="r-a2" min="-10" max="60" step="0.01" value="32"></div>
+        <div class="row tight" id="fine2">
+          <button class="small" data-d="-1" type="button">−1°</button><button class="small" data-d="-0.1" type="button">−0.1°</button><button class="small" data-d="-0.01" type="button">−0.01°</button>
+          <button class="small" data-d="0.01" type="button">＋0.01°</button><button class="small" data-d="0.1" type="button">＋0.1°</button><button class="small" data-d="1" type="button">＋1°</button>
+        </div>
+        <div class="row" id="gorow"><button id="go-dest" class="warn" type="button">⇢ 轉到最近的完全破壞性</button><button id="go-cons" class="small" type="button">⇢ 轉到完全建設性</button></div>
+        <div class="row frrow"><label class="tag2">雷射2 頻率 f₂/f₁</label><input type="number" id="n-fr" step="0.001" min="0.333" max="3"><span id="finefr" class="frbtns"><button class="small" data-d="-0.01" type="button" title="頻率 −0.01（可按住）">−−</button><button class="small" data-d="-0.001" type="button" title="頻率 −0.001（可按住）">−</button><button class="small" data-d="0.001" type="button" title="頻率 ＋0.001（可按住）">＋</button><button class="small" data-d="0.01" type="button" title="頻率 ＋0.01（可按住）">＋＋</button></span></div>
+        <div class="row"><input type="range" id="r-fr" min="-1" max="1" step="0.0005" value="0" title="對數刻度：中間＝1，左端 1/3，右端 3"></div>
+        <div class="row tight frpre"><button class="small" data-fr="1/3" type="button">×⅓</button><button class="small" data-fr="1/2" type="button">×½</button><button class="small" id="fr-reset" type="button">×1 同頻（重設）</button><button class="small" data-fr="2" type="button">×2</button><button class="small" data-fr="3" type="button">×3</button></div>
+        <div class="dim" id="fr-info"></div>
+        <div class="dim">（頻率不同 → 相位差隨時間漂移，不相干；λ₂ = c/f₂）</div>
+        <div class="row"><label class="tag2">雷射2 前後 s</label><input type="range" id="r-s2" min="-4" max="4" step="0.01" value="0"><span id="v-s2" class="dim">0.00</span></div>
+        <div class="row tight" id="fines2"><button class="small" data-d="-0.1" type="button">−0.1</button><button class="small" data-d="-0.01" type="button">−0.01</button><button class="small" data-d="0.01" type="button">＋0.01</button><button class="small" data-d="0.1" type="button">＋0.1</button></div>
+        <div class="dim">（沿光束方向前後移動雷射筆 2：光束不變，只改變路程差）</div>
+        <details><summary class="dim" style="cursor:pointer">進階：雷射1 角度、波長</summary>
+          <div class="row"><label class="tag1">雷射1 角度 θ₁</label><input type="number" id="n-a1" step="0.01"> °</div>
+          <div class="row"><input type="range" id="r-a1" min="-25" max="25" step="0.01" value="0"></div>
+          <div class="row tight" id="fine1"><button class="small" data-d="-0.1" type="button">−0.1°</button><button class="small" data-d="-0.01" type="button">−0.01°</button><button class="small" data-d="0.01" type="button">＋0.01°</button><button class="small" data-d="0.1" type="button">＋0.1°</button></div>
+          <div class="row"><label>模型波長 λ</label><input type="range" id="r-lam" min="3" max="12" step="0.1" value="6"><span id="v-lam" class="dim">6.00</span></div>
+          <div class="dim">⚠ 為了看得見波形，波長被放大成示意值（真實紅光約 650 nm）。</div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h3><span>③ 慢動作（時間）</span><span id="v-ratio" class="dim"></span></h3>
+        <div class="row"><button id="t-play" type="button">⏸ 暫停</button><button id="t-stepb" class="small" type="button">◀ 單步</button><button id="t-step" class="small" type="button">單步 ▶</button><button id="t-zero" class="small" type="button">↺ 相位歸零</button></div>
+        <div class="row"><label>速度</label><input type="range" id="r-speed" min="0" max="100" step="0.1" value="56"><span id="v-speed" class="dim">0.25 Hz</span></div>
+        <div class="row tight"><button class="small" data-f="0.05" type="button">超慢</button><button class="small" data-f="0.15" type="button">慢</button><button class="small" data-f="0.6" type="button">中</button><button class="small" data-f="2" type="button">快</button><button class="small warn" data-f="460000000000000" type="button" title="真實光頻約 4.6×10¹⁴ Hz">真實</button></div>
+        <div class="dim" id="speed-note"></div>
+        <div class="row"><label>時間相位 ωt</label><input type="range" id="r-theta" min="0" max="360" step="1" value="0"><span id="v-theta" class="dim">0°</span></div>
+        <div class="dim">暫停後可拖動「時間相位」逐格檢視；超慢速能看到瞬時亮度「亮→暗→亮→暗」。速度條最右端＝真實光頻，亮度穩定不閃。</div>
+      </div>
+      <div class="card">
+        <h3><span>④ 顯示</span></h3>
+        <div class="row"><label>光的樣子：</label>
+          <span class="seg"><button id="m-beam" class="active" type="button">光束</button><button id="m-field" type="button">電場 E</button></span>
+          <button id="t-b" type="button">磁場 B：關</button></div>
+        <div class="row"><button id="t-screen" class="active" type="button">屏幕：開</button>
+          <label>亮度顯示：</label><span class="seg"><button id="b-inst" class="active" type="button" title="依速度模擬眼睛的視覺暫留：慢速看得到亮暗，快速自動變穩定">視覺暫留（隨速度）</button><button id="b-avg" type="button" title="直接顯示長時間平均">時間平均</button></span></div>
+        <div class="dim">電場 E 垂直桌面（上下振動），磁場 B 在桌面內垂直光束；兩光 E 同向，可直接相加。</div>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+<div id="help"><div class="box">
+  <h2>說明：光的干涉與疊加原理</h2>
+  <h4>① 疊加原理</h4>
+  <p>空間中某一點的電場，等於各道光波在該點電場的<b>向量和</b>：<code>E = E₁ + E₂</code>。本頁兩支雷射筆的<b>波長 λ 相同、偏振相同</b>：電場 E 都沿「垂直桌面」的方向振動（垂直於兩道光束所在的平面），所以兩個電場永遠平行，可以直接當成<b>純量相加</b>。兩支筆在筆尖處的<b>初相位相同</b>（同調）。磁場 B 在桌面內、垂直傳播方向，兩束 B 方向不同，本頁只分別畫出，不畫合成磁場。</p>
+  <h4>② 相位差來自「路程差」</h4>
+  <p>兩光從筆尖出發時同相，到達交會點時走的路程不同：<code>Δ = L₁ − L₂</code>，相位差 <code>Δφ = 2π·Δ/λ</code>。轉動雷射筆就會改變交會點位置，也就改變 L₁、L₂ 與 Δφ；前後移動雷射筆 2 則不改變光束，只改變 L₂。</p>
+  <h4>③ 建設性與破壞性</h4>
+  <p><b>完全建設性</b>：Δ = mλ（m＝0, 1, 2…），Δφ 為 2π 的整數倍，兩電場同向相加，振幅 <b>2A</b>，最亮。</p>
+  <p><b>完全破壞性</b>：Δ = (m+½)λ，Δφ 為 π 的奇數倍，兩電場永遠反向、大小相等，<b>E₁＋E₂ ＝ 0（任何時刻都是 0）</b>，交會處一直是暗的。</p>
+  <p>其他角度為<b>部分干涉</b>：合成振幅 = 2A·|cos(Δφ/2)|。</p>
+  <h4>④ 為什麼要「慢動作」？亮暗亮暗是什麼？</h4>
+  <p>真實紅光頻率約 4.6×10¹⁴ Hz，每秒振盪幾百兆次，眼睛與儀器只看得到<b>時間平均</b>的亮度。本頁把時間放慢到約 1 Hz 以下：合成電場 E 的平方（亮度）每個週期會出現「亮→暗→亮→暗」，那是<b>瞬時</b>亮度。只有「完全破壞性」時，E 一直是 0，瞬時與平均都全暗。</p>
+  <h4>④½ 視覺暫留：把速度條拉到最快</h4>
+  <p>眼睛不是瞬時偵測器，而是有約 0.07 秒的「反應時間」（視覺暫留）。本頁用<b>指數平均</b>模擬它：看到的亮度 = 瞬時亮度對過去約 0.07 秒做指數加權平均。結果：亮暗變化的頻率遠低於 1/0.07 ≈ 14 Hz 時看得到閃爍（超慢、慢）；速度越快，閃爍越被抹平（約在 1～3 Hz 的光頻速度開始明顯變淡）；拉到最右端「真實」（4.6×10¹⁴ Hz）時，亮度<b>幾乎完全不閃</b>：建設性＝穩定的亮、破壞性＝穩定的暗、部分干涉＝穩定的中間亮度，這就是我們在現實中看到的樣子。若兩道光頻率不同，只要拍頻 |f₂−f₁| 大於約 10 Hz，眼睛也只看得到平均亮度。高速時光束上的波形會因為畫面更新（約 60 fps）而產生假的動態，所以改以<b>半透明的振幅包絡帶</b>表示「波形振動太快看不清，只剩大小範圍」。「亮度顯示」可選「視覺暫留（隨速度）」或直接看「時間平均」。</p>
+  <h4>⑤ 相干性（為什麼頻率要相同）</h4>
+  <p>要看到穩定的干涉，兩道光必須<b>相干</b>：<b>頻率（波長）相同</b>，而且<b>相位差固定不變</b>。把「雷射2 頻率 f₂/f₁」調成不等於 1 時，Δφ(t) = Δφ₀ + 2π(f₂−f₁)t 會隨時間持續漂移，交會處的合成振幅忽大忽小（<b>拍</b>），屏幕亮點以拍頻明暗交替，<b>任何角度都無法得到永遠暗的交會點</b>；長時間平均亮度 = I₁＋I₂，沒有干涉項。按「同頻（重設）」即恢復相干。</p>
+  <h4>⑥ 模型的限制（誠實說明）</h4>
+  <p>● 波長被<b>放大</b>成示意值（預設 6 個單位，可在 3～12 調整），真實紅光約 650 nm。真實情況下 1 m 的路程就有約 150 萬個波長，要調到半個波長的精度需要微米等級的穩定度。<br>
+     ● 現實中兩支獨立的雷射筆<b>不具有固定的相位關係</b>（不同調），不會看到穩定的干涉；實驗室通常把<b>同一道雷射</b>用雙狹縫或分光鏡分成兩束。本頁是理想化的教學模型。<br>
+     ● 光束有一點寬度（高斯光束），所以交會區在屏幕上會出現條紋；交會點一個點的亮暗由 Δφ 決定，條紋間距約為 λ／(2·sin(α/2))。<br>
+     ● 破壞性干涉並不是能量消失：能量被重新分配到屏幕上其他的亮紋位置。</p>
+  <h4>⑦ 操作</h4>
+  <p>拖曳雷射筆或黃色旋鈕旋轉；面板可用滑桿、數字欄及 ±1°、±0.1°、±0.01° 微調（按住可連續調整）；「轉到最近的完全破壞性」可一鍵對準。右上的放大鏡面板可看交會點的 3D 近拍／場圖、E₁、E₂、E₁+E₂ 的時間圖與亮度圓盤。滾輪／＋－縮放，「轉動／平移」切換視角操作，「重置視角」回到預設。</p>
+  <div style="text-align:right;margin-top:8px"><button id="help-close" class="active" type="button">關閉</button></div>
+</div></div>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+
+const $ = id => document.getElementById(id);
+const D2R = Math.PI / 180, TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/* ================= 模型常數 ================= */
+const HB = 3.5;                 // 光束離桌面高度
+const HE = 2.4;                 // 振幅 A 對應的畫面高度（電場）
+const HBF = 2.4;                // 磁場畫面高度
+const W_BEAM = 1.8;             // 光束半徑（高斯 1/e）
+const XMAX = 52;                // 交會點 x 超過此值視為「太遠」
+const A_MIN = -10, A_MAX = 60;
+const P1B = [0, 6], P2B = [5, -5];       // 筆尖位置（桌面座標 x,y；y 往「遠方」為正）
+const REAL_F = 4.6e14;
+const EYE_TAU = 0.07;           // 眼睛（視覺暫留）時間常數，單位：真實秒
+const COL = { c1: 0xe5432d, c2: 0x2f6fdb, sum: 0xc026d3, b1: 0xd99a00, b2: 0x16a34a };
+
+const S = { a1: 0, a2: 32, s2: 0, lam: 6, fr: 1, theta: 0, freq: 0.25, playing: true,
+            mode: 'beam', showB: false, screen: true, avg: false,
+            scrT: 0, lensDist: 34, magTab: '3d', mapSel: 'sum' };
+
+/* ================= 物理（純函式） ================= */
+function compute(p) {
+  const a1 = p.a1 * D2R, a2 = p.a2 * D2R;
+  const d1 = [Math.cos(a1), Math.sin(a1)], d2 = [Math.cos(a2), Math.sin(a2)];
+  const P1 = P1B.slice(), P2 = [P2B[0] + p.s2 * d2[0], P2B[1] + p.s2 * d2[1]];
+  const fr = p.fr === undefined ? 1 : p.fr;
+  const g = { d1, d2, P1, P2, valid: false, lam: p.lam, fr, lam1: p.lam, lam2: p.lam / fr, coh: Math.abs(fr - 1) < 1e-9 };
+  const cr = d1[0] * d2[1] - d1[1] * d2[0];
+  if (Math.abs(cr) > 1e-5) {
+    const wx = P2[0] - P1[0], wy = P2[1] - P1[1];
+    const t1 = (wx * d2[1] - wy * d2[0]) / cr, t2 = (wx * d1[1] - wy * d1[0]) / cr;
+    const C = [P1[0] + t1 * d1[0], P1[1] + t1 * d1[1]];
+    g.t1 = t1; g.t2 = t2; g.C = C;
+    g.valid = t1 > 1.5 && t2 > 1.5 && C[0] < XMAX && C[0] > 2 && Math.abs(C[1]) < 25;
+  }
+  if (g.valid) {
+    g.alpha = Math.acos(clamp(d1[0] * d2[0] + d1[1] * d2[1], -1, 1));
+    let n = [d1[0] + d2[0], d1[1] + d2[1]]; const nl = Math.hypot(n[0], n[1]);
+    n = nl > 1e-3 ? [n[0] / nl, n[1] / nl] : d1.slice();
+    g.n = n;
+    const phi = Math.atan2(-n[0], n[1]);                  // 屏幕面朝雷射（法向 = −n）
+    g.phi = phi; g.e = [Math.cos(phi), Math.sin(phi)];
+    g.delta = g.t1 - g.t2; g.dl = g.delta / p.lam; g.dphi = TAU * g.dl;
+    g.phi0 = TAU * (g.t1 / g.lam1 - g.t2 / g.lam2);                 // t=0 時交會點的相位差
+    g.R = g.coh ? Math.abs(Math.cos(Math.PI * g.dl)) : null;
+  }
+  return g;
+}
+const classify = R => R <= 0.05 ? 'dest' : (R >= 0.985 ? 'cons' : 'part');
+function beamField(g, i, x, y, th) {      // 單一光束在平面上某點的 E（以 A 為單位）
+  const P = i ? g.P2 : g.P1, d = i ? g.d2 : g.d1;
+  const rx = x - P[0], ry = y - P[1];
+  const s = rx * d[0] + ry * d[1], rho = rx * d[1] - ry * d[0];
+  return Math.exp(-(rho * rho) / (W_BEAM * W_BEAM)) * Math.cos(TAU * s / (i ? g.lam2 : g.lam1) - (i ? g.fr : 1) * th);
+}
+function crossingFields(g, th) {
+  const E1 = Math.cos(TAU * g.t1 / g.lam1 - th), E2 = Math.cos(TAU * g.t2 / g.lam2 - g.fr * th);
+  return { E1, E2, sum: E1 + E2 };
+}
+function envelopeAt(g, th) {        // 交會點合成振幅的包絡 2|cos(Δφ(t)/2)|
+  return 2 * Math.abs(Math.cos((g.phi0 - (1 - g.fr) * th) / 2));
+}
+let G = compute(S);
+
+/* 求「完全破壞性/建設性」的 θ₂ 根 */
+let rootCache = { key: '', dest: [], cons: [] };
+function findRoots() {
+  const key = [S.a1, S.s2, S.lam, S.fr].join('|');
+  if (rootCache.key === key) return rootCache;
+  const res = { key, dest: [], cons: [] };
+  if (Math.abs(S.fr - 1) > 1e-9) { rootCache = res; return res; }      // 頻率不同：沒有穩定的干涉條件
+  for (const kind of ['dest', 'cons']) {
+    const f = a => { const g = compute({ a1: S.a1, a2: a, s2: S.s2, lam: S.lam, fr: 1 });
+      if (!g.valid) return null; return kind === 'dest' ? Math.cos(Math.PI * g.dl) : Math.sin(Math.PI * g.dl); };
+    const STEP = 0.05; let pa = A_MIN, pf = f(pa);
+    for (let a = A_MIN + STEP; a <= A_MAX + 1e-9; a += STEP) {
+      const fv = f(a);
+      if (pf !== null && fv !== null && pf * fv < 0) {
+        let lo = pa, hi = a, flo = pf;
+        for (let it = 0; it < 50; it++) { const mid = (lo + hi) / 2, fm = f(mid);
+          if (fm === null) break; if (flo * fm <= 0) hi = mid; else { lo = mid; flo = fm; } }
+        res[kind].push((lo + hi) / 2);
+      }
+      pa = a; pf = fv;
+    }
+  }
+  rootCache = res; return res;
+}
+function nearestRoot(kind) {
+  const r = findRoots()[kind]; if (!r.length) return null;
+  let best = r[0]; for (const a of r) if (Math.abs(a - S.a2) < Math.abs(best - S.a2)) best = a; return best;
+}
+
+/* ================= three.js 場景 ================= */
+const wrap = $('canvas-wrap');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+wrap.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef2f7);
+const camera = new THREE.PerspectiveCamera(36, 1, 0.5, 900);
+const lensCam = new THREE.PerspectiveCamera(36, 1.7, 0.2, 400);
+const lensHole = $('lens-hole');
+const lensRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+lensRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+lensHole.insertBefore(lensRenderer.domElement, lensHole.firstChild);
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.9); sun.position.set(-20, 60, 40); scene.add(sun);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = false; controls.minDistance = 8; controls.maxDistance = 260;
+controls.maxPolarAngle = Math.PI / 2 - 0.03; controls.screenSpacePanning = true;
+
+/* 桌面 */
+const table = new THREE.Mesh(new THREE.PlaneGeometry(68, 28), new THREE.MeshBasicMaterial({ color: 0xfbfcfe }));
+table.rotation.x = -Math.PI / 2; table.position.set(23, 0, 0); scene.add(table);
+{
+  const pts = [];
+  for (let x = -11; x <= 57; x += 4) pts.push(x, 0.02, -14, x, 0.02, 14);
+  for (let z = -14; z <= 14.1; z += 4) pts.push(-11, 0.02, z, 57, 0.02, z);
+  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.LineSegments(gg, new THREE.LineBasicMaterial({ color: 0xdde4ee })));
+  const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-11, 0.03, -14), new THREE.Vector3(57, 0.03, -14), new THREE.Vector3(57, 0.03, 14), new THREE.Vector3(-11, 0.03, 14)]),
+    new THREE.LineBasicMaterial({ color: 0xaab5c5 }));
+  scene.add(edge);
+}
+
+/* 雷射筆 */
+function makePen(bandColor, id) {
+  const g = new THREE.Group();
+  const meshes = [];
+  const add = (m) => { m.userData.laser = id; g.add(m); meshes.push(m); return m; };
+  const metal = new THREE.MeshStandardMaterial({ color: 0x5b6676, metalness: 0.55, roughness: 0.38 });
+  const body = add(new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 8.6, 28), metal));
+  body.rotation.z = Math.PI / 2; body.position.x = -5.3;
+  add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.76, 0.76, 1.5, 28), new THREE.MeshStandardMaterial({ color: bandColor, roughness: .5 })), { }))
+    .rotation.z = Math.PI / 2;
+  g.children[g.children.length - 1].position.x = -3.0;
+  const tip = add(new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.72, 0.9, 28), new THREE.MeshStandardMaterial({ color: 0x2b3340, metalness: .6, roughness: .3 })));
+  tip.rotation.z = -Math.PI / 2; tip.position.x = -0.45;
+  const btn = add(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0xd9dee6 })));
+  btn.position.set(-7.6, 0.85, 0);
+  const lens = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff4030 }));
+  lens.position.x = 0.05; g.add(lens);
+  const stand = add(new THREE.Mesh(new THREE.BoxGeometry(5.2, HB - 0.8, 1.7), new THREE.MeshStandardMaterial({ color: 0xcbd3de, roughness: .8 })));
+  stand.position.set(-4.2, -(HB + 0.8) / 2 + 0.0, 0);
+  return { group: g, meshes };
+}
+const pens = [makePen(0xe5432d, 1), makePen(0x2f6fdb, 2)];
+pens.forEach(p => scene.add(p.group));
+/* 旋轉量角器環 + 旋鈕 */
+const dials = [1, 2].map(id => {
+  const grp = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(7.2, 7.45, 90), new THREE.MeshBasicMaterial({ color: id === 1 ? 0xf0b4aa : 0xaecaf5, side: THREE.DoubleSide, transparent: true, opacity: .8 }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06; grp.add(ring);
+  const ticks = [];
+  for (let a = -30; a <= 70; a += 10) { const r0 = 7.45, r1 = a % 30 === 0 ? 8.5 : 8.0, ca = Math.cos(a * D2R), sa = -Math.sin(a * D2R);
+    ticks.push(r0 * ca, 0.07, r0 * sa, r1 * ca, 0.07, r1 * sa); }
+  const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(ticks, 3));
+  grp.add(new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: id === 1 ? 0xd98a7d : 0x7fa6e6 })));
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.95, 24, 16), new THREE.MeshStandardMaterial({ color: 0xffc933, roughness: .4, emissive: 0x553d00 }));
+  knob.userData.laser = id; grp.add(knob);
+  scene.add(grp);
+  return { grp, knob };
+});
+
+/* 光束 */
+/* 各光束用自己的顏色（雷射1 紅、雷射2 藍）；光暈用一般混合，避免在淺色背景上「加成」成白色 */
+const BEAM_COL = [{ core: 0xe0201a, coreF: 0xf06a5c, halo: 0xe5432d }, { core: 0x1d5fe0, coreF: 0x5b8ff0, halo: 0x2f6fdb }];
+const beams = [1, 2].map(id => {
+  const grp = new THREE.Group(), bc = BEAM_COL[id - 1];
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1, 10, 1, true), new THREE.MeshBasicMaterial({ color: bc.core }));
+  const halo = new THREE.Mesh(new THREE.CylinderGeometry(W_BEAM * 0.8, W_BEAM * 0.8, 1, 24, 1, true),
+    new THREE.MeshBasicMaterial({ color: bc.halo, transparent: true, opacity: .16, depthWrite: false, side: THREE.DoubleSide }));
+  core.rotation.z = halo.rotation.z = Math.PI / 2;
+  const cw = new THREE.Group(); cw.add(core); cw.add(halo); grp.add(cw); scene.add(grp);
+  return { grp, cw, core, halo };
+});
+function glowTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.25, 'rgba(255,120,90,.8)'); gr.addColorStop(1, 'rgba(255,60,40,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+}
+const GLOW = glowTexture();
+const spotGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+scene.add(spotGlow);
+const cMark = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); scene.add(cMark);
+
+/* 屏幕 */
+const scrCv = document.createElement('canvas'); scrCv.width = 256; scrCv.height = 180;
+const scrCtx = scrCv.getContext('2d', { willReadFrequently: true }); const scrImg = scrCtx.createImageData(256, 180);
+const scrTex = new THREE.CanvasTexture(scrCv); scrTex.colorSpace = THREE.SRGBColorSpace;
+const SCR_W = 10, SCR_H = 7;
+const scrGroup = new THREE.Group();
+const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(SCR_W, SCR_H), new THREE.MeshBasicMaterial({ map: scrTex, side: THREE.DoubleSide, transparent: true, depthWrite: false }));
+scrMesh.position.y = SCR_H / 2; scrGroup.add(scrMesh);
+{
+  const fr = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(SCR_W, SCR_H)), new THREE.LineBasicMaterial({ color: 0x44546a }));
+  fr.position.y = SCR_H / 2; scrGroup.add(fr);
+}
+scene.add(scrGroup);
+
+/* 波形物件（曲線 + 薄片） */
+class WaveObj {
+  constructor(col, lw, sheetOp, layer, outline) {
+    this.N = 0; this.layer = layer; this.sheetBase = sheetOp; this.outlineOn = !!outline;
+    this.mat = new LineMaterial({ color: col, linewidth: lw, transparent: true, depthWrite: false });
+    this.line = new Line2(new LineGeometry(), this.mat); this.line.frustumCulled = false; this.line.layers.set(layer);
+    this.sheetMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: sheetOp, side: THREE.DoubleSide, depthWrite: false });
+    this.sheet = new THREE.Mesh(new THREE.BufferGeometry(), this.sheetMat); this.sheet.frustumCulled = false; this.sheet.layers.set(layer);
+    if (outline) { this.omat = new LineMaterial({ color: 0xffffff, linewidth: lw + 4, transparent: true, depthWrite: false });
+      this.oline = new Line2(this.line.geometry, this.omat); this.oline.frustumCulled = false; this.oline.layers.set(layer); this.oline.renderOrder = 1; this.line.renderOrder = 2; scene.add(this.oline); }
+    scene.add(this.line); scene.add(this.sheet);
+  }
+  ensure(N) {
+    if (N === this.N) return; this.N = N;
+    this.line.geometry.dispose(); const g = new LineGeometry(); g.setPositions(new Float32Array(N * 3)); this.line.geometry = g; if (this.oline) this.oline.geometry = g;
+    const idx = [];
+    for (let j = 0; j < N - 1; j++) { const a = 2 * j, c = 2 * j + 1, a2 = 2 * j + 2, c2 = 2 * j + 3; idx.push(a, c, a2, c, c2, a2); }
+    this.sheet.geometry.dispose(); const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 6), 3)); sg.setIndex(idx); this.sheet.geometry = sg;
+  }
+  set(N, cur, axis) {
+    this.ensure(N);
+    const la = this.line.geometry.attributes.instanceStart.data;
+    for (let j = 0; j < N - 1; j++) { const o = j * 6, q = j * 3;
+      la.array[o] = cur[q]; la.array[o + 1] = cur[q + 1]; la.array[o + 2] = cur[q + 2];
+      la.array[o + 3] = cur[q + 3]; la.array[o + 4] = cur[q + 4]; la.array[o + 5] = cur[q + 5]; }
+    la.needsUpdate = true;
+    const sp = this.sheet.geometry.attributes.position;
+    for (let j = 0; j < N; j++) { const o = j * 6, q = j * 3;
+      sp.array[o] = axis[q]; sp.array[o + 1] = axis[q + 1]; sp.array[o + 2] = axis[q + 2];
+      sp.array[o + 3] = cur[q]; sp.array[o + 4] = cur[q + 1]; sp.array[o + 5] = cur[q + 2]; }
+    sp.needsUpdate = true;
+    this.line.visible = this.sheet.visible = true; if (this.oline) this.oline.visible = true;
+  }
+  hide() { this.line.visible = this.sheet.visible = false; if (this.oline) this.oline.visible = false; }
+  fade(f) { this.mat.opacity = f; this.sheetMat.opacity = this.sheetBase * f; if (this.omat) this.omat.opacity = f; }
+}
+const wE = [new WaveObj(COL.c1, 3.2, 0.2, 1), new WaveObj(COL.c2, 3.2, 0.2, 1)];
+const wB = [new WaveObj(COL.b1, 2.6, 0.2, 2), new WaveObj(COL.b2, 2.6, 0.2, 2)];
+const wSum = new WaveObj(COL.sum, 5, 0.16, 1, true);
+const waveMats = [...wE, ...wB, wSum].map(w => w.mat).concat([wSum.omat]);
+
+/* 向量箭頭（交會點的 E₁、E₂、E₁+E₂） */
+function makeArrow(color, r, outline) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 10), mat);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(r * 2.6, 1, 14), mat);
+  // 合成箭頭：白色外殼（整支看起來是白的，使用者喜歡）；個別箭頭：本身顏色＋細深色輪廓（反面外殼，只露出邊緣）
+  // 舊版 bug：visible = outline 在 outline 未傳時是 undefined，three.js 只在 visible === false 時才略過 → 白色外殼也畫在 E₁、E₂ 箭頭上，把紅/藍完全包住
+  const ow = outline ? new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }) : new THREE.MeshBasicMaterial({ color: 0x1f2933, side: THREE.BackSide });
+  const k = outline ? 1 : 0.62;
+  const oshaft = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.9 * k, r * 1.9 * k, 1, 10), ow), ohead = new THREE.Mesh(new THREE.ConeGeometry(r * 3.9 * k, 1, 14), ow);
+  g.add(oshaft); g.add(ohead); g.add(shaft); g.add(head);
+  oshaft.visible = ohead.visible = true;
+  g.traverse(o => { o.layers.set(1); o.renderOrder = 20; }); oshaft.renderOrder = ohead.renderOrder = 19;   // 畫在半透明波形薄片之後，顏色不被染色
+  g.userData = { shaft, head, oshaft, ohead, r };
+  scene.add(g); return g;
+}
+const arrows = { e1: makeArrow(0xe0201a, 0.11, false), e2: makeArrow(0x1d5fe0, 0.11, false), sum: makeArrow(COL.sum, 0.14, true) };
+function setArrow(a, ox, oy, oz, len) {     // len：帶號的高度
+  const L = Math.abs(len);
+  if (L < 0.03) { a.visible = false; return; }
+  a.visible = true; a.position.set(ox, oy, oz); a.scale.y = len < 0 ? -1 : 1;
+  const hl = Math.min(0.75, L * 0.5), sl = Math.max(0.001, L - hl);
+  a.userData.shaft.scale.y = sl; a.userData.shaft.position.y = sl / 2;
+  a.userData.head.scale.y = hl; a.userData.head.position.y = sl + hl / 2;
+  const u = a.userData; u.oshaft.scale.y = sl + 0.14; u.oshaft.position.y = sl / 2 - 0.01; u.ohead.scale.y = hl + 0.2; u.ohead.position.y = sl + hl / 2 + 0.04;
+}
+
+/* 高速時：波形以半透明「振幅包絡帶」取代（避免 60 fps 取樣造成假動態） */
+const mkBand = (col, layer, flat) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+  m.layers.set(layer); if (flat) m.rotation.order = 'YXZ'; m.visible = false; scene.add(m); return m; };
+const bandE = [mkBand(COL.c1, 1, false), mkBand(COL.c2, 1, false)], bandB = [mkBand(COL.b1, 2, true), mkBand(COL.b2, 2, true)];
+const sumBar = new THREE.Mesh(new THREE.BoxGeometry(0.36, 1, 0.36), new THREE.MeshBasicMaterial({ color: COL.sum, transparent: true, opacity: 0, depthWrite: false }));
+sumBar.layers.set(1); sumBar.visible = false; scene.add(sumBar);
+function updateBands(wf) {
+  const on = wf < 0.98;
+  for (let i = 0; i < 2; i++) {
+    const P = i ? G.P2 : G.P1, d = i ? G.d2 : G.d1, len = beams[i].len, a = (i ? S.a2 : S.a1) * D2R;
+    const cx = P[0] + d[0] * len / 2, cz = -(P[1] + d[1] * len / 2);
+    bandE[i].visible = on; bandE[i].material.opacity = 0.3 * (1 - wf);
+    bandE[i].position.set(cx, HB, cz); bandE[i].rotation.set(0, a, 0); bandE[i].scale.set(len, 2 * HE, 1);
+    bandB[i].visible = on && S.showB; bandB[i].material.opacity = 0.3 * (1 - wf);
+    bandB[i].position.set(cx, HB, cz); bandB[i].rotation.set(-Math.PI / 2, a, 0); bandB[i].scale.set(len, 2 * HBF, 1);
+  }
+  sumBar.visible = on && G.valid;
+  if (sumBar.visible) { const D = brightnessAtC(S.theta).inst, h = Math.max(0.02, 2 * HE * 2 * Math.sqrt(D));
+    sumBar.material.opacity = 0.95 * (1 - wf); sumBar.scale.set(1, h, 1); sumBar.position.set(G.C[0], HB, -G.C[1]); }
+}
+
+/* ================= 幾何更新 ================= */
+const w3 = (x, y, h) => new THREE.Vector3(x, h, -y);      // 桌面座標 → 世界座標
+function updateGeometry() {
+  G = compute(S);
+  for (let i = 0; i < 2; i++) {
+    const P = i ? G.P2 : G.P1, a = (i ? S.a2 : S.a1) * D2R;
+    pens[i].group.position.set(P[0], HB, -P[1]); pens[i].group.rotation.y = a;
+    dials[i].grp.position.set(P[0], 0, -P[1]); dials[i].grp.rotation.y = a * 0;   // 環固定
+    dials[i].knob.position.set(7.35 * Math.cos(a), 0.45, -7.35 * Math.sin(a));
+    beams[i].grp.position.set(P[0], HB, -P[1]); beams[i].grp.rotation.y = a;
+    const t = i ? G.t2 : G.t1;
+    const len = G.valid ? t + (S.screen ? 0 : 9) : 58;
+    beams[i].cw.scale.set(1, 1, 1);
+    beams[i].core.scale.set(1, len, 1); beams[i].halo.scale.set(1, len, 1);
+    beams[i].core.position.x = len / 2; beams[i].halo.position.x = len / 2;
+    beams[i].len = len;
+  }
+  const v = G.valid;
+  cMark.visible = v; scrGroup.visible = v && S.screen; spotGlow.visible = v && !S.screen;
+  if (v) {
+    cMark.position.copy(w3(G.C[0], G.C[1], HB));
+    scrGroup.position.set(G.C[0], 0, -G.C[1]); scrGroup.rotation.y = G.phi;
+    spotGlow.position.copy(cMark.position);
+  }
+  updateReadouts();
+}
+
+/* ================= 每影格：波形 / 箭頭 / 屏幕 ================= */
+function sampleCount(len, lam) { return clamp(Math.ceil(len / lam * 40) + 1, 80, 3000); }
+function updateWaves() {
+  const th = S.theta, wf = waveFade(S.freq);
+  updateBands(wf);
+  if (wf < 0.02) { wE.forEach(w => w.hide()); wB.forEach(w => w.hide()); wSum.hide(); for (const a of Object.values(arrows)) a.visible = false; return; }
+  for (let i = 0; i < 2; i++) {
+    const lamI = i ? S.lam / S.fr : S.lam, k = TAU / lamI, wI = i ? S.fr : 1;
+    const P = i ? G.P2 : G.P1, d = i ? G.d2 : G.d1, len = beams[i].len;
+    const N = sampleCount(len, lamI);
+    const cur = new Float32Array(N * 3), axis = new Float32Array(N * 3), curB = new Float32Array(N * 3);
+    for (let j = 0; j < N; j++) {
+      const s = len * j / (N - 1), c = Math.cos(k * s - wI * th);
+      const x = P[0] + d[0] * s, y = P[1] + d[1] * s;
+      axis[3 * j] = x; axis[3 * j + 1] = HB; axis[3 * j + 2] = -y;
+      cur[3 * j] = x; cur[3 * j + 1] = HB + HE * c; cur[3 * j + 2] = -y;
+      curB[3 * j] = x + d[1] * HBF * c; curB[3 * j + 1] = HB; curB[3 * j + 2] = -(y - d[0] * HBF * c);
+    }
+    wE[i].set(N, cur, axis); wE[i].fade(wf);
+    if (S.showB) { wB[i].set(N, curB, axis); wB[i].fade(wf); } else wB[i].hide();
+  }
+  if (G.valid) {
+    const Ls = 16, N = clamp(Math.ceil(Ls / S.lam * 32) + 1, 80, 600);
+    const cur = new Float32Array(N * 3), axis = new Float32Array(N * 3);
+    for (let j = 0; j < N; j++) {
+      const s = Ls * j / (N - 1); const x = G.C[0] - G.n[0] * s, y = G.C[1] - G.n[1] * s;
+      const E = beamField(G, 0, x, y, th) + beamField(G, 1, x, y, th);
+      axis[3 * j] = x; axis[3 * j + 1] = HB; axis[3 * j + 2] = -y;
+      cur[3 * j] = x; cur[3 * j + 1] = HB + HE * E; cur[3 * j + 2] = -y;
+    }
+    wSum.set(N, cur, axis); wSum.fade(wf);
+  } else wSum.hide();
+
+  const f = crossingFields(G.valid ? G : { t1: 0, t2: 0, lam1: S.lam, lam2: S.lam, fr: 1 }, th);
+  if (G.valid) {
+    const cx = G.C[0], cz = -G.C[1];
+    const ox = -G.n[0] * 0.2, oz = G.n[1] * 0.2, ex = G.e[0] * 1.1, ez = -G.e[1] * 1.1;
+    setArrow(arrows.e1, cx + ox - ex, HB, cz + oz - ez, f.E1 * HE);
+    setArrow(arrows.e2, cx + ox, HB + f.E1 * HE, cz + oz, f.E2 * HE);
+    setArrow(arrows.sum, cx + ox + ex, HB, cz + oz + ez, f.sum * HE);
+    for (const a of Object.values(arrows)) a.traverse(o => { if (o.material) { o.material.transparent = true; o.material.opacity = wf; } });
+  } else for (const a of Object.values(arrows)) a.visible = false;
+}
+
+function brightColor(b) {       // 0..1 → rgb（暗灰 → 紅 → 白熱）
+  b = clamp(b, 0, 1); const v = Math.pow(b, 0.7);
+  return [30 + 225 * v, 36 + 80 * v + 140 * v * v * v, 46 + 50 * v + 150 * v * v * v];
+}
+/* 視覺暫留：眼睛 ≈ 一階低通（指數平均，時間常數 EYE_TAU）。
+   亮度 b=(E₁+E₂)²/4 可拆成 直流項 + 幾個單頻成分（頻率 2f₁、2f₂、f₁+f₂、|f₁−f₂|），
+   每個單頻成分經指數平均後，振幅乘 G=1/√(1+(ωτ)²)，相位落後 arctan(ωτ)；直流項不變。
+   這是指數平均的解析解，所以不論光頻多高（真實 4.6×10¹⁴ Hz）都不會因 60 fps 取樣而產生假閃爍。 */
+function waveFade(f) { return clamp((Math.log10(12) - Math.log10(f)) / (Math.log10(12) - Math.log10(3)), 0, 1); }
+function eyeSetup() {
+  const f = S.freq, fr = S.fr;
+  const mk = nu => { if (S.avg) return { G: 0, l: 0 }; const wt = TAU * nu * f * EYE_TAU; return { G: 1 / Math.sqrt(1 + wt * wt), l: Math.atan(wt) }; };
+  const a = mk(2), b = mk(2 * fr), c = mk(1 + fr), d = mk(Math.abs(fr - 1));
+  return { a, b, c, d, gain: 2 / (1 + a.G) };        // gain：自動曝光，使「平均亮度」在高速時＝R²（與時間平均模式一致），慢速時＝瞬時亮度
+}
+function brightRaw(g1, g2, c1, c2, th, E, coh) {     // 未乘 gain 的視覺亮度（g：該處光束振幅比；c：k·s）
+  const fr = S.fr;
+  let v = g1 * g1 / 8 + g2 * g2 / 8 + (coh ? g1 * g2 / 4 * Math.cos(c1 - c2) : 0);
+  v += g1 * g1 / 8 * E.a.G * Math.cos(2 * th - 2 * c1 - E.a.l);
+  v += g2 * g2 / 8 * E.b.G * Math.cos(2 * fr * th - 2 * c2 - E.b.l);
+  v += g1 * g2 / 4 * E.c.G * Math.cos((1 + fr) * th - (c1 + c2) - E.c.l);
+  if (!coh) { const d = fr - 1, cc = d >= 0 ? (c1 - c2) : -(c1 - c2); v += g1 * g2 / 4 * E.d.G * Math.cos(Math.abs(d) * th + cc - E.d.l); }
+  return v;
+}
+function brightnessAtC(th) {    // 回傳 {inst: 視覺亮度(含視覺暫留), avg: 時間平均, raw: 真正的瞬時 (E/2)²}
+  if (!G.valid) return { inst: 0, avg: 0, raw: 0 };
+  const E = eyeSetup(), c1 = TAU * G.t1 / G.lam1, c2 = TAU * G.t2 / G.lam2;
+  const f = crossingFields(G, th);
+  return { inst: clamp(brightRaw(1, 1, c1, c2, th, E, G.coh) * E.gain, 0, 1), avg: G.coh ? G.R * G.R : 0.5, raw: (f.sum / 2) ** 2 };
+}
+function updateScreen() {
+  if (!G.valid || !S.screen) return;
+  const W = 256, H = 180, k1 = TAU / G.lam1, k2 = TAU / G.lam2, th = S.theta, d1 = G.d1, d2 = G.d2, e = G.e;
+  const c1 = e[0] * d1[1] - e[1] * d1[0], c2 = e[0] * d2[1] - e[1] * d2[0];     // ρ_i = u·c_i
+  const p1 = d1[0] * e[0] + d1[1] * e[1], p2 = d2[0] * e[0] + d2[1] * e[1];     // s_i = t_i + u·p_i
+  const E = eyeSetup(), colV = new Float32Array(W);
+  for (let px = 0; px < W; px++) {
+    const u = ((px + 0.5) / W - 0.5) * SCR_W;
+    const g1 = Math.exp(-((u * c1) ** 2) / (W_BEAM * W_BEAM)), g2 = Math.exp(-((u * c2) ** 2) / (W_BEAM * W_BEAM));
+    colV[px] = brightRaw(g1, g2, k1 * (G.t1 + u * p1), k2 * (G.t2 + u * p2), th, E, G.coh) * E.gain;   // 垂直方向因子 fv² 之後再乘
+  }
+  const data = scrImg.data, boardA = 1 - S.scrT / 100;
+  for (let py = 0; py < H; py++) {
+    const v = (SCR_H / 2) - ((py + 0.5) / H) * SCR_H;
+    const fv2 = Math.exp(-(2 * v * v) / (W_BEAM * W_BEAM));
+    for (let px = 0; px < W; px++) {
+      const b = clamp(colV[px] * fv2, 0, 1);
+      const c = brightColor(b), o = (py * W + px) * 4;
+      data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255 * Math.max(boardA, Math.min(1, Math.pow(b, 0.5) * 1.6));
+    }
+  }
+  scrCtx.clearRect(0, 0, W, H); scrCtx.putImageData(scrImg, 0, 0);
+  const cx = W / 2, cy = H / 2, rpx = W_BEAM * 1.5 * (W / SCR_W);
+  scrCtx.lineWidth = 2; scrCtx.setLineDash([7, 7]);
+  scrCtx.strokeStyle = '#ff7a66'; scrCtx.lineDashOffset = 0; scrCtx.beginPath(); scrCtx.arc(cx, cy, rpx, 0, TAU); scrCtx.stroke();
+  scrCtx.strokeStyle = '#6fa0ff'; scrCtx.lineDashOffset = 7; scrCtx.beginPath(); scrCtx.arc(cx, cy, rpx, 0, TAU); scrCtx.stroke();
+  scrCtx.setLineDash([]);
+  scrTex.needsUpdate = true;
+}
+function updateSpotGlow() {
+  if (!G.valid || S.screen) return;
+  const b = brightnessAtC(S.theta), v = b.inst;
+  spotGlow.material.opacity = clamp(v * 1.1, 0, 1); const sc = 1.2 + 4.2 * Math.sqrt(v); spotGlow.scale.set(sc, sc, 1);
+}
+
+/* ================= 放大鏡：時間圖、場圖、亮度指示 ================= */
+const tg = $('tgraph'), tgx = tg.getContext('2d');
+const cssDpr = () => Math.min(window.devicePixelRatio || 1, 2);
+function fitCanvas(cv) {
+  const cw = cv.clientWidth, ch = cv.clientHeight, d = cssDpr();
+  if (cw < 2 || ch < 2) return null;
+  const w = Math.round(cw * d), h = Math.round(ch * d);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  return { W: cw, H: ch, d };
+}
+function drawTimeGraph() {
+  const sz = fitCanvas(tg); if (!sz) return;
+  const W = sz.W, H = sz.H, ctx = tgx; ctx.setTransform(sz.d, 0, 0, sz.d, 0, 0);
+  ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  const padL = 34, padR = 8, padT = 16, stripH = 20, gap = 6, plotH = H - padT - stripH - gap - 6, plotW = W - padL - padR;
+  const yMid = padT + plotH / 2, yS = plotH / 2 / 2.15;      // ±2.15 A
+  ctx.font = '10.5px sans-serif'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
+  ctx.strokeStyle = '#e1e6ee'; ctx.fillStyle = '#6b7685';
+  for (const v of [-2, -1, 0, 1, 2]) { const y = yMid - v * yS; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillText((v > 0 ? '+' : '') + v + 'A', 2, y); }
+  ctx.strokeStyle = '#98a4b3'; ctx.beginPath(); ctx.moveTo(padL, yMid); ctx.lineTo(W - padR, yMid); ctx.stroke();
+  if (!G.valid) { ctx.fillStyle = '#6b7685'; ctx.textAlign = 'center'; ctx.fillText('尚無交會點', W / 2, H / 2); ctx.textAlign = 'left'; return; }
+  const k1 = TAU / G.lam1, k2 = TAU / G.lam2, fr = G.fr;
+  const far = Math.abs(1 - fr) >= 0.3;     // 頻率差很大：不是「拍」，顯示兩個較慢波的週期
+  const Pper = G.coh ? 2 : far ? 2 / Math.min(1, fr) : clamp(1.1 / Math.abs(1 - fr), 6, 80), Th = TAU * Pper, STEPS = clamp(Math.round(Pper * 26 * Math.max(1, fr)), 200, 2400);
+  const X2 = ph => padL + ph / Th * plotW;
+  const cursorOn = S.freq <= 3;           // 太快時游標會因取樣而假動，改成不畫
+  const th = ((S.theta % Th) + Th) % Th;
+  const curve = (fn, col, lw) => { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath();
+    for (let i = 0; i <= STEPS; i++) { const ph = Th * i / STEPS, x = X2(ph), y = yMid - fn(ph) * yS; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); };
+  const e1 = ph => Math.cos(k1 * G.t1 - ph), e2 = ph => Math.cos(k2 * G.t2 - fr * ph);
+  const env = ph => 2 * Math.abs(Math.cos((G.phi0 - (1 - fr) * ph) / 2));
+  curve(e1, '#e5432d', G.coh ? 1.7 : 1.1); curve(e2, '#2f6fdb', G.coh ? 1.7 : 1.1);
+  if (!G.coh) { ctx.setLineDash([4, 3]); curve(env, '#7e1d8a', 1.6); curve(ph => -env(ph), '#7e1d8a', 1.6); ctx.setLineDash([]); }
+  curve(ph => e1(ph) + e2(ph), '#ffffff', G.coh ? 6 : 4); curve(ph => e1(ph) + e2(ph), '#c026d3', G.coh ? 3 : 1.8);
+  // 亮度條（E²）
+  const sy = padT + plotH + gap;
+  for (let i = 0; i < plotW; i += 2) { const ph = Th * i / plotW; let s2;
+    if (G.coh) { const s = (e1(ph) + e2(ph)) / 2; s2 = s * s; } else s2 = (env(ph) / 2) ** 2;
+    const c = brightColor(s2); ctx.fillStyle = `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`; ctx.fillRect(padL + i, sy, 2, stripH); }
+  ctx.strokeStyle = '#44546a'; ctx.lineWidth = 1.2; ctx.strokeRect(padL, sy, plotW, stripH);
+  ctx.fillStyle = '#fff'; ctx.font = '10.5px sans-serif'; ctx.fillText(plotW < 250 ? '亮度' : G.coh ? '瞬時亮度 (E₁+E₂)²' : '拍的亮度（包絡²）', padL + 5, sy + stripH / 2);
+  if (cursorOn) {
+    const xc = X2(th); ctx.setLineDash([5, 4]); ctx.strokeStyle = '#d00000'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(xc, padT); ctx.lineTo(xc, sy + stripH); ctx.stroke(); ctx.setLineDash([]);
+    for (const [fn, col] of [[e1, '#e5432d'], [e2, '#2f6fdb'], [ph => e1(ph) + e2(ph), '#c026d3']]) {
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xc, yMid - fn(th) * yS, 4, 0, TAU); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.stroke(); }
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fillRect(padL + 4, yMid - 11, plotW - 8, 22);
+    ctx.fillStyle = '#7e1d8a'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(S.freq >= 1e3 ? (plotW < 250 ? '真實光頻：只看到平均' : '真實光頻：振盪太快，眼睛只看得到平均亮度') : (plotW < 250 ? '太快：只看到平均' : '速度太快：時間游標略去，眼睛看到平均'), padL + plotW / 2, yMid); ctx.textAlign = 'left';
+  }
+  ctx.fillStyle = '#6b7685'; ctx.font = '10.5px sans-serif'; ctx.textAlign = 'right'; ctx.fillText(plotW < 250 ? (G.coh ? '時間 →' : `時間（${Pper.toFixed(0)} 週期）→`) : G.coh ? '時間 ωt（兩個週期）→' : `時間（${Pper.toFixed(0)} 個週期，虛線＝拍的包絡）→`, W - padR, 8); ctx.textAlign = 'left';
+}
+const mapCv = $('mapcv'), mapCtx = mapCv.getContext('2d');
+const mapOff = document.createElement('canvas'); mapOff.width = 176; mapOff.height = 104; const mapOffCtx = mapOff.getContext('2d');
+const mapImg = mapOffCtx.createImageData(176, 104);
+function beamGS(g, i, x, y) {      // 該點的光束振幅比 g 與 k·s
+  const P = i ? g.P2 : g.P1, d = i ? g.d2 : g.d1, rx = x - P[0], ry = y - P[1];
+  const s = rx * d[0] + ry * d[1], rho = rx * d[1] - ry * d[0];
+  return [Math.exp(-(rho * rho) / (W_BEAM * W_BEAM)), TAU * s / (i ? g.lam2 : g.lam1)];
+}
+function drawMap() {
+  const sz = fitCanvas(mapCv); if (!sz) return;
+  const W = mapCv.width, H = mapCv.height, d = sz.d;
+  if (!G.valid) { mapCtx.fillStyle = '#e9eef5'; mapCtx.fillRect(0, 0, W, H); mapCtx.fillStyle = '#5b6776'; mapCtx.font = `${15 * d}px sans-serif`; mapCtx.textAlign = 'center'; mapCtx.fillText('尚無交會點', W / 2, H / 2); mapCtx.textAlign = 'left'; return; }
+  const w = 176, h = 104, half = S.lensDist * 0.4, hh = half * H / W, th = S.theta, dat = mapImg.data;
+  const fast = waveFade(S.freq) < 0.5;          // 太快：改畫視覺平均亮度（空間條紋）
+  const sel = S.mapSel;
+  for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
+    const x = G.C[0] + ((px + .5) / w - .5) * 2 * half, y = G.C[1] - ((py + .5) / h - .5) * 2 * hh, o = (py * w + px) * 4;
+    if (fast) {
+      let [g1, c1] = beamGS(G, 0, x, y), [g2, c2] = beamGS(G, 1, x, y);
+      if (sel === '1') g2 = 0; else if (sel === '2') g1 = 0;
+      const dc = g1 * g1 / 8 + g2 * g2 / 8 + (G.coh ? g1 * g2 / 4 * Math.cos(c1 - c2) : 0);
+      const t = Math.pow(clamp(2 * dc, 0, 1), 0.75);
+      dat[o] = 244 + (200 - 244) * t; dat[o + 1] = 244 + (30 - 244) * t; dat[o + 2] = 244 + (30 - 244) * t; dat[o + 3] = 255; continue;
+    }
+    let v;
+    if (sel === '1') v = beamField(G, 0, x, y, th); else if (sel === '2') v = beamField(G, 1, x, y, th);
+    else v = (beamField(G, 0, x, y, th) + beamField(G, 1, x, y, th)) / 2;
+    v = clamp(v, -1, 1); const a = Math.abs(v);
+    const t = Math.pow(a, 0.85), tgt = v >= 0 ? [214, 40, 40] : [37, 99, 235];
+    dat[o] = 244 + (tgt[0] - 244) * t; dat[o + 1] = 244 + (tgt[1] - 244) * t; dat[o + 2] = 244 + (tgt[2] - 244) * t; dat[o + 3] = 255;
+  }
+  mapOffCtx.putImageData(mapImg, 0, 0); mapCtx.imageSmoothingEnabled = true; mapCtx.drawImage(mapOff, 0, 0, W, H);
+  // 光束軸線與 C 點
+  const toPx = (x, y) => [((x - G.C[0]) / (2 * half) + .5) * W, (-(y - G.C[1]) / (2 * hh) + .5) * H];
+  mapCtx.setLineDash([6 * d, 5 * d]); mapCtx.lineWidth = 1.5 * d;
+  [[G.d1, '#b3261e'], [G.d2, '#1d4fb8']].forEach(([dd, col]) => { mapCtx.strokeStyle = col; mapCtx.beginPath();
+    const a = toPx(G.C[0] - dd[0] * 30, G.C[1] - dd[1] * 30), b = toPx(G.C[0] + dd[0] * 30, G.C[1] + dd[1] * 30); mapCtx.moveTo(a[0], a[1]); mapCtx.lineTo(b[0], b[1]); mapCtx.stroke(); });
+  mapCtx.setLineDash([]); mapCtx.fillStyle = '#111827'; mapCtx.beginPath(); mapCtx.arc(W / 2, H / 2, 4 * d, 0, TAU); mapCtx.fill();
+  mapCtx.fillStyle = 'rgba(255,255,255,.85)'; mapCtx.fillRect(4 * d, H - 22 * d, 250 * d, 18 * d); mapCtx.fillStyle = '#333'; mapCtx.font = `${12.5 * d}px sans-serif`;
+  mapCtx.fillText(fast ? '俯視：視覺平均亮度（紅＝亮，條紋＝干涉）' : '俯視：桌面上各點的 E（上下振動）', 8 * d, H - 12 * d);
+}
+function updateIndicator() {
+  const dot = $('bdot'), txt = $('btxt');
+  if (!G.valid) { dot.style.background = '#222'; dot.style.boxShadow = 'none'; dot.textContent = '—'; txt.textContent = '交會點亮度：—'; return; }
+  const b = brightnessAtC(S.theta), vb = b.inst, c = brightColor(vb);
+  dot.style.background = `radial-gradient(circle at 50% 45%, rgb(${Math.min(255, c[0] + 25) | 0},${Math.min(255, c[1] + 40) | 0},${Math.min(255, c[2] + 40) | 0}) 0%, rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0}) 70%)`;
+  dot.style.boxShadow = `0 0 ${(6 + 34 * vb).toFixed(0)}px ${(vb * 12).toFixed(0)}px rgba(255,90,60,${(0.15 + 0.7 * vb).toFixed(2)})`;
+  dot.textContent = (100 * vb).toFixed(0) + '%';
+  txt.innerHTML = `交會點亮度<br>${S.avg ? '（時間平均）' : '（眼睛看到的）'}<br>平均 ${(100 * b.avg).toFixed(0)}%`;
+}
+
+/* ================= 讀數 / 提示 ================= */
+const sup = n => String(n).replace(/[-0-9]/g, c => '⁻⁰¹²³⁴⁵⁶⁷⁸⁹'['-0123456789'.indexOf(c)]);
+function updateReadouts() {
+  const dis = !G.coh;
+  $('go-dest').disabled = $('go-cons').disabled = dis;
+  $('go-dest').title = $('go-cons').title = dis ? '兩光頻率不同時沒有穩定的干涉條件，請先按「同頻（重設）」' : '';
+  const cd = $('chip-d').parentElement, cp = $('chip-p').parentElement;
+  if (!G.valid) {
+    cd.style.display = cp.style.display = '';
+    $('chip-d').textContent = '–'; $('chip-p').textContent = '–'; $('chip-r').textContent = '光束未相交'; $('chip-r').className = '';
+    return;
+  }
+  if (dis) {
+    cd.style.display = cp.style.display = 'none'; $('chip-r').textContent = '頻率不同 → 不相干'; $('chip-r').className = 'inc';
+    return;
+  }
+  cd.style.display = cp.style.display = '';
+  const cls = classify(G.R);
+  const part = G.R > Math.SQRT1_2 ? '部分干涉（偏建設性）' : '部分干涉（偏破壞性）';
+  const label = cls === 'dest' ? '完全破壞性' : cls === 'cons' ? '完全建設性' : part;
+  $('chip-d').textContent = G.dl.toFixed(3); $('chip-p').textContent = (G.dphi / Math.PI).toFixed(2) + 'π';
+  $('chip-r').textContent = label; $('chip-r').className = cls === 'part' ? '' : cls;
+}
+function updateUI() {
+  if (document.activeElement !== $('n-fr')) $('n-fr').value = S.fr.toFixed(3);
+  $('r-fr').value = Math.log(S.fr) / Math.log(3);
+  document.querySelectorAll('[data-fr]').forEach(b => b.classList.toggle('active', Math.abs(eval(b.dataset.fr) - S.fr) < 1e-6));
+  $('fr-info').innerHTML = `f₁ = 1.000 f₀（λ₁ = ${S.lam.toFixed(2)}）　<span class="tag2">f₂ = ${S.fr.toFixed(3)} f₀（λ₂ = ${(S.lam / S.fr).toFixed(2)}）</span>` + (Math.abs(S.fr - 1) > 1e-9 ? `<br>拍頻 |f₂−f₁| = ${(Math.abs(S.fr - 1) * S.freq).toFixed(4)} Hz（慢動作時間）` : '　（同頻、相干）');
+  if (document.activeElement !== $('n-a2')) $('n-a2').value = S.a2.toFixed(2);
+  $('r-a2').value = S.a2;
+  if (document.activeElement !== $('n-a1')) $('n-a1').value = S.a1.toFixed(2);
+  $('r-a1').value = S.a1; $('r-s2').value = S.s2; $('v-s2').textContent = S.s2.toFixed(2);
+  $('r-lam').value = S.lam; $('v-lam').textContent = S.lam.toFixed(2);
+  $('m-beam').classList.toggle('active', S.mode === 'beam'); $('m-field').classList.toggle('active', S.mode === 'field');
+  $('t-b').textContent = '磁場 B：' + (S.showB ? '開' : '關'); $('t-b').classList.toggle('active', S.showB);
+  $('t-screen').textContent = '屏幕：' + (S.screen ? '開' : '關'); $('t-screen').classList.toggle('active', S.screen);
+  $('b-inst').classList.toggle('active', !S.avg); $('b-avg').classList.toggle('active', S.avg);
+  $('t-play').textContent = S.playing ? '⏸ 暫停' : '▶ 播放'; $('t-play2').textContent = S.playing ? '⏸ 暫停' : '▶ 播放';
+  $('stagehint').innerHTML = S.mode === 'field' ? `<i style="background:#e5432d"></i>E₁<i style="background:#2f6fdb"></i>E₂<i style="background:#c026d3;height:6px"></i>E₁+E₂` + (S.showB ? `<i style="background:#d99a00"></i>B₁<i style="background:#16a34a"></i>B₂` : '') + `　·　波長為示意放大` : '拖曳雷射筆或黃色旋鈕可旋轉　·　波長為示意放大（見說明）';
+  const real = S.freq >= REAL_F * 0.99;
+  const fe = Math.floor(Math.log10(S.freq));
+  $('v-speed').textContent = real ? '真實 4.6×10¹⁴ Hz' : S.freq >= 1e3 ? `${(S.freq / 10 ** fe).toFixed(1)}×10${sup(fe)} Hz` : (S.freq >= 1 ? S.freq.toFixed(2) : S.freq.toFixed(3)) + ' Hz';
+  const ratio = REAL_F / S.freq, ex = Math.floor(Math.log10(ratio));
+  $('v-ratio').textContent = real ? '＝真實光頻' : `比真實慢約 ${(ratio / 10 ** ex).toFixed(1)}×10${sup(ex)} 倍`;
+  $('r-speed').value = fToSlider(S.freq);
+  const Ge = 1 / Math.sqrt(1 + (TAU * 2 * S.freq * EYE_TAU) ** 2);
+  $('speed-note').innerHTML = S.avg ? '目前為「時間平均」顯示：不閃爍。' : S.freq >= 1e3
+    ? '真實光頻（≈10¹⁴ Hz）≫ 眼睛反應（約 0.07 s）：眼睛只看到平均亮度，<b>幾乎不閃</b>。' : `眼睛（視覺暫留 ≈ 0.07 s）看到的亮暗閃爍對比：<b>${(100 * Ge).toFixed(Ge < 0.01 ? 2 : 0)}%</b>（速度越快越被抹平）`;
+}
+const SL_BREAK = 75, LOGR = Math.log10(REAL_F);
+function sliderToF(v) { if (v >= 99.9) return REAL_F; return v <= SL_BREAK ? Math.pow(10, -2 + 2.5 * v / SL_BREAK) : Math.pow(10, 0.5 + (v - SL_BREAK) / (100 - SL_BREAK) * (LOGR - 0.5)); }
+function fToSlider(f) { const L = Math.log10(f); return L <= 0.5 ? (L + 2) / 2.5 * SL_BREAK : SL_BREAK + (L - 0.5) / (LOGR - 0.5) * (100 - SL_BREAK); }
+function syncTheta() {
+  const deg = ((S.theta / D2R) % 360 + 360) % 360;
+  $('r-theta').value = deg; $('v-theta').textContent = deg.toFixed(0) + '°';
+}
+
+/* ================= 狀態設定 ================= */
+function setA2(v, exact) { S.a2 = clamp(exact ? v : Math.round(v * 1000) / 1000, A_MIN, A_MAX); dirty(); }
+function setA1(v) { S.a1 = clamp(Math.round(v * 1000) / 1000, -25, 25); dirty(); }
+function setS2(v) { S.s2 = clamp(Math.round(v * 1000) / 1000, -4, 4); dirty(); }
+const FR_MIN = 0.333, FR_MAX = 3;
+function setFr(v, exact) { S.fr = clamp(exact ? v : Math.round(v * 1000) / 1000, FR_MIN, FR_MAX); if (Math.abs(S.fr - 1) < 1e-9) S.fr = 1; dirty(); }
+function setLam(v) { S.lam = clamp(v, 3, 12); dirty(); }
+function setMode(m) { S.mode = m; if (m === 'beam') {} applyLayers(); dirty(); }
+function setB(on) { S.showB = on; if (on && S.mode !== 'field') S.mode = 'field'; applyLayers(); dirty(); }
+function setScreen(on) { S.screen = on; dirty(); }
+function setPlaying(p) { S.playing = p; updateUI(); }
+function setTheta(t) { S.theta = t; syncTheta(); }
+let needGeom = true; function dirty() { needGeom = true; }
+function applyLayers() {
+  camera.layers.set(0);
+  if (S.mode === 'field') { camera.layers.enable(1); if (S.showB) camera.layers.enable(2); }
+  beams.forEach((b, i) => { b.halo.material.opacity = S.mode === 'field' ? 0.07 : 0.18; b.core.material.color.set(S.mode === 'field' ? BEAM_COL[i].coreF : BEAM_COL[i].core); });
+}
+
+/* ================= 控制面板綁定 ================= */
+/* 按住連續調整：按下先動一次，400 ms 後每 60 ms 重複（1.5 秒後加速），放開／離開／取消／失焦即停止 */
+function bindRepeat(btn, fn) {
+  let delay = null, timer = null, t0 = 0;
+  const stop = () => { clearTimeout(delay); clearInterval(timer); delay = timer = null; };
+  btn.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0) return; stop(); fn(); t0 = performance.now();
+    delay = setTimeout(() => { let n = 0; timer = setInterval(() => { fn(); if (++n % 3 === 0 && performance.now() - t0 > 1900) { clearInterval(timer); timer = setInterval(() => { fn(); fn(); }, 60); } }, 60); }, 400);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel', 'blur'].forEach(ev => btn.addEventListener(ev, stop));
+  btn.addEventListener('click', e => { if (e.detail === 0) fn(); });
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+}
+$('r-a2').addEventListener('input', e => setA2(+e.target.value));
+$('n-a2').addEventListener('input', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) setA2(v); });
+$('n-a2').addEventListener('change', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) setA2(v); updateUI(); });
+$('r-a1').addEventListener('input', e => setA1(+e.target.value));
+$('n-a1').addEventListener('input', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) setA1(v); });
+$('n-a1').addEventListener('change', () => updateUI());
+document.querySelectorAll('#fine2 button').forEach(b => bindRepeat(b, () => setA2(S.a2 + parseFloat(b.dataset.d))));
+document.querySelectorAll('#fine1 button').forEach(b => bindRepeat(b, () => setA1(S.a1 + parseFloat(b.dataset.d))));
+document.querySelectorAll('#fines2 button').forEach(b => bindRepeat(b, () => setS2(S.s2 + parseFloat(b.dataset.d))));
+document.querySelectorAll('#finefr button[data-d]').forEach(b => bindRepeat(b, () => setFr(S.fr + parseFloat(b.dataset.d))));
+$('r-fr').addEventListener('input', e => { const L = +e.target.value; setFr(Math.abs(L) < 0.003 ? 1 : Math.pow(3, L), true); });
+document.querySelectorAll('[data-fr]').forEach(b => b.addEventListener('click', () => setFr(eval(b.dataset.fr), true)));
+$('n-fr').addEventListener('input', e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0.333 && v <= 3) setFr(v); });
+$('n-fr').addEventListener('change', () => updateUI());
+$('fr-reset').addEventListener('click', () => setFr(1, true));
+$('r-s2').addEventListener('input', e => setS2(+e.target.value));
+$('r-lam').addEventListener('input', e => setLam(+e.target.value));
+$('m-beam').addEventListener('click', () => setMode('beam'));
+$('m-field').addEventListener('click', () => setMode('field'));
+$('t-b').addEventListener('click', () => setB(!S.showB));
+$('t-screen').addEventListener('click', () => setScreen(!S.screen));
+function setScrT(v) { S.scrT = clamp(Math.round(v), 0, 100); $('r-scrt').value = S.scrT; $('v-scrt').textContent = S.scrT + '%'; }
+$('r-scrt').addEventListener('input', e => setScrT(+e.target.value));
+['pointerdown', 'pointermove', 'wheel', 'touchstart'].forEach(ev => $('scrctl').addEventListener(ev, e => e.stopPropagation(), { passive: true }));
+$('b-inst').addEventListener('click', () => { S.avg = false; updateUI(); });
+$('b-avg').addEventListener('click', () => { S.avg = true; updateUI(); });
+$('t-play').addEventListener('click', () => setPlaying(!S.playing));
+$('t-play2').addEventListener('click', () => setPlaying(!S.playing));
+$('t-step').addEventListener('click', () => { setPlaying(false); setTheta(S.theta + Math.PI / 8); });
+$('t-stepb').addEventListener('click', () => { setPlaying(false); setTheta(S.theta - Math.PI / 8); });
+$('t-zero').addEventListener('click', () => setTheta(0));
+$('r-speed').addEventListener('input', e => { S.freq = sliderToF(+e.target.value); updateUI(); });
+document.querySelectorAll('[data-f]').forEach(b => b.addEventListener('click', () => { S.freq = parseFloat(b.dataset.f); updateUI(); }));
+$('r-theta').addEventListener('input', e => { setPlaying(false); S.theta = (+e.target.value) * D2R; $('v-theta').textContent = e.target.value + '°'; });
+$('go-dest').addEventListener('click', () => { const a = nearestRoot('dest'); if (a !== null) setA2(a, true); });
+$('go-cons').addEventListener('click', () => { const a = nearestRoot('cons'); if (a !== null) setA2(a, true); });
+$('btn-help').addEventListener('click', () => $('help').classList.add('show'));
+$('help-close').addEventListener('click', () => $('help').classList.remove('show'));
+$('help').addEventListener('click', e => { if (e.target === $('help')) $('help').classList.remove('show'); });
+$('btn-side').addEventListener('click', () => { const c = $('side').classList.toggle('collapsed'); $('btn-side').textContent = c ? '▲ 展開面板' : '▼ 收合面板'; setTimeout(onResize, 30); });
+$('mag-toggle').addEventListener('click', () => { const c = $('mag').classList.toggle('collapsed'); $('mag-toggle').textContent = c ? '▲展開' : '▼收合'; });
+function setTab(t) {
+  S.magTab = t; $('tab-3d').classList.toggle('active', t === '3d'); $('tab-map').classList.toggle('active', t === 'map');
+  $('lens-hole').style.display = t === '3d' ? 'block' : 'none'; $('mapcv').style.display = t === 'map' ? 'block' : 'none';
+  $('mapsel').style.display = t === 'map' ? 'flex' : 'none';
+}
+$('tab-3d').addEventListener('click', () => setTab('3d')); $('tab-map').addEventListener('click', () => setTab('map'));
+document.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => {
+  S.mapSel = b.dataset.map; document.querySelectorAll('[data-map]').forEach(x => x.classList.toggle('active', x === b)); }));
+$('lens-in').addEventListener('click', () => { S.lensDist = clamp(S.lensDist / 1.25, 8, 80); });
+$('lens-out').addEventListener('click', () => { S.lensDist = clamp(S.lensDist * 1.25, 8, 80); });
+
+/* ================= 視角：轉動/平移、縮放、重置 ================= */
+const DEF_TARGET = new THREE.Vector3(22, 1.5, -1), DEF_DIR = new THREE.Vector3(-0.42, 0.74, 0.66).normalize();
+let userMoved = false;
+function fitDefault() {
+  const r = wrap.getBoundingClientRect(); camera.aspect = Math.max(0.2, r.width / Math.max(1, r.height)); camera.updateProjectionMatrix();
+  controls.target.copy(DEF_TARGET);
+  const corners = []; for (const x of [-9, 52]) for (const z of [-11, 10]) for (const y of [0, 8]) corners.push(new THREE.Vector3(x, y, z));
+  let lo = 20, hi = 500;
+  for (let i = 0; i < 32; i++) {
+    const mid = (lo + hi) / 2; camera.position.copy(DEF_TARGET).addScaledVector(DEF_DIR, mid); camera.lookAt(DEF_TARGET); camera.updateMatrixWorld();
+    const ok = corners.every(c => { const p = c.clone().project(camera); return Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.88; });
+    if (ok) hi = mid; else lo = mid;
+  }
+  camera.position.copy(DEF_TARGET).addScaledVector(DEF_DIR, hi); camera.lookAt(DEF_TARGET); controls.update();
+}
+function applyNavMode(mode) {
+  const isPan = mode === 'pan';
+  controls.mouseButtons = { LEFT: isPan ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: isPan ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN };
+  controls.touches = { ONE: isPan ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  $('btn-nav-rotate').classList.toggle('active', !isPan); $('btn-nav-pan').classList.toggle('active', isPan);
+}
+$('btn-nav-rotate').addEventListener('click', () => applyNavMode('rotate'));
+$('btn-nav-pan').addEventListener('click', () => applyNavMode('pan'));
+applyNavMode('rotate');
+let zoomGoal = null; const ZOOM_STEP = 1.2;
+const curDist = () => camera.position.distanceTo(controls.target);
+function zoomStep(f) { const base = zoomGoal !== null ? zoomGoal : curDist(); zoomGoal = clamp(base / f, controls.minDistance, controls.maxDistance); userMoved = true; }
+function updateZoomAnim() {
+  if (zoomGoal === null) return; const d = curDist(), nd = d + (zoomGoal - d) * 0.25;
+  if (Math.abs(zoomGoal - nd) < 0.01) { zoomGoal = null; return; }
+  const dv = camera.position.clone().sub(controls.target).normalize(); camera.position.copy(controls.target).addScaledVector(dv, nd);
+}
+function bindHold(id, f) {
+  const btn = $(id); let timer = null, delay = null;
+  const stop = () => { clearTimeout(delay); clearInterval(timer); };
+  btn.addEventListener('pointerdown', e => { if (e.button !== undefined && e.button !== 0) return; zoomStep(f); delay = setTimeout(() => { timer = setInterval(() => zoomStep(f), 110); }, 350); });
+  ['pointerup', 'pointerleave', 'pointercancel', 'blur'].forEach(ev => btn.addEventListener(ev, stop));
+  btn.addEventListener('click', e => { if (e.detail === 0) zoomStep(f); });
+}
+bindHold('btn-zoom-in', ZOOM_STEP); bindHold('btn-zoom-out', 1 / ZOOM_STEP);
+$('btn-view-reset').addEventListener('click', () => { zoomGoal = null; userMoved = false; fitDefault(); });
+renderer.domElement.addEventListener('wheel', () => { zoomGoal = null; userMoved = true; }, { passive: true });
+controls.addEventListener('start', () => { userMoved = true; });
+
+/* ================= 拖曳旋轉雷射筆 ================= */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+const hitList = [...pens[0].meshes, ...pens[1].meshes, dials[0].knob, dials[1].knob];
+const hPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -HB);
+let drag = null;
+function setRay(e) { const r = renderer.domElement.getBoundingClientRect(); ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ptr, camera); }
+function pick(e) { setRay(e); const h = ray.intersectObjects(hitList, false); return h.length ? h[0].object.userData.laser : 0; }
+function planeAngle(id) {
+  const p = new THREE.Vector3(); if (!ray.ray.intersectPlane(hPlane, p)) return null;
+  const P = id === 1 ? G.P1 : G.P2; return Math.atan2(-p.z - P[1], p.x - P[0]) / D2R;
+}
+wrap.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return; const id = pick(e); if (!id) return;
+  const ang = planeAngle(id); if (ang === null) return;
+  e.stopPropagation(); e.preventDefault();
+  drag = { id, a0: ang, v0: id === 1 ? S.a1 : S.a2, pid: e.pointerId };
+  renderer.domElement.setPointerCapture && renderer.domElement.setPointerCapture(e.pointerId); wrap.style.cursor = 'grabbing';
+}, true);
+window.addEventListener('pointermove', e => {
+  if (drag) {
+    setRay(e); const ang = planeAngle(drag.id); if (ang === null) return;
+    let da = ang - drag.a0; while (da > 180) da -= 360; while (da < -180) da += 360;
+    const v = Math.round((drag.v0 + da) * 100) / 100; drag.v0b = v; drag.a0 = ang; drag.v0 = v;
+    drag.id === 1 ? setA1(v) : setA2(v); return;
+  }
+  if (e.target === renderer.domElement) wrap.style.cursor = pick(e) ? 'grab' : '';
+});
+const endDrag = () => { if (drag) { drag = null; wrap.style.cursor = ''; } };
+window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
+
+/* ================= 版面：尺寸、標籤、放大鏡停靠 ================= */
+let W = 1, H = 1;
+function onResize() {
+  const r = wrap.getBoundingClientRect(); W = Math.max(1, Math.floor(r.width)); H = Math.max(1, Math.floor(r.height));
+  renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix();
+  $('stage').classList.toggle('narrow', W < 860); $('stage').classList.toggle('tiny', W < 600);
+  if (!userMoved) fitDefault();
+}
+new ResizeObserver(onResize).observe(wrap); window.addEventListener('resize', onResize);
+const proj = v => { const p = v.clone().project(camera); return { x: (p.x * .5 + .5) * W, y: (-p.y * .5 + .5) * H, z: p.z }; };
+function updateOverlay() {
+  const l1 = proj(w3(G.P1[0], G.P1[1], HB + 3.2)), l2 = proj(w3(G.P2[0], G.P2[1], HB + 3.2));
+  const set = (id, p, show = true) => { const el = $(id); el.style.display = show ? 'block' : 'none'; el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; };
+  set('lbl1', { x: l1.x - 38, y: l1.y }); set('lbl2', { x: l2.x - 30, y: l2.y });
+  const ring = $('ring');
+  if (!G.valid) { ring.style.display = 'none'; $('lblC').style.display = $('lblS').style.display = $('scrctl').style.display = 'none'; return; }
+  const c = proj(w3(G.C[0], G.C[1], HB));
+  const R = Math.max(22, Math.min(46, 400 / camera.position.distanceTo(controls.target) * 4.2));
+  ring.setAttribute('cx', c.x); ring.setAttribute('cy', c.y); ring.setAttribute('r', R); ring.style.display = 'block';
+  set('lblC', { x: c.x, y: c.y + R + 24 });
+  placeScrCtl(c);
+  const sp = proj(w3(G.C[0], G.C[1], SCR_H + 0.3)); set('lblS', sp, S.screen);
+}
+
+/* 屏幕透明度小滑桿：貼在屏幕外側邊緣，避開交會點、光束、雷射筆；放不下就縮成 ◐ */
+let scrUserOpen = false, scrObs = null;
+function scrObstacles(c) {
+  const pts = [c], segs = [];
+  for (let i = 0; i < 2; i++) {
+    const P = i ? G.P2 : G.P1, d = i ? G.d2 : G.d1;
+    const tip = proj(w3(P[0], P[1], HB)), back = proj(w3(P[0] - d[0] * 10, P[1] - d[1] * 10, HB));
+    pts.push(tip, back, proj(w3(P[0], P[1], 0)));
+    segs.push([tip, c], [back, tip]);
+  }
+  return { pts, segs };
+}
+function rectHits(r, o) {
+  const inR = (p, m) => p.x > r.x - m && p.x < r.x + r.w + m && p.y > r.y - m && p.y < r.y + r.h + m;
+  if (o.pts.some(p => inR(p, 22))) return true;
+  for (const [a, b] of o.segs) for (let k = 0; k <= 60; k++) { const t = k / 60; if (inR({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, 9)) return true; }
+  return false;
+}
+function placeScrCtl(c) {
+  const ctl = $('scrctl');
+  if (!S.screen) { ctl.style.display = 'none'; return; }
+  ctl.style.display = 'flex';
+  const o = scrObstacles(c); scrObs = o;
+  const cands = [-1, 1].map(sg => { const k = SCR_W / 2 + 0.35, x = G.C[0] + G.e[0] * sg * k, y = G.C[1] + G.e[1] * sg * k;
+    const p = proj(w3(x, y, SCR_H * 0.5)), mid = proj(w3(G.C[0], G.C[1], SCR_H * 0.5)); return { p, out: p.x >= mid.x ? 1 : -1 }; });
+  const pen = proj(w3((G.P1[0] + G.P2[0]) / 2, (G.P1[1] + G.P2[1]) / 2, HB));
+  cands.sort((a, b) => Math.hypot(b.p.x - pen.x, b.p.y - pen.y) - Math.hypot(a.p.x - pen.x, a.p.y - pen.y));
+  const rectFor = (cd, w, h) => ({ x: cd.out > 0 ? cd.p.x + 6 : cd.p.x - 6 - w, y: cd.p.y - h / 2, w, h });
+  const inStage = r => r.x > 4 && r.y > 44 && r.x + r.w < W - 4 && r.y + r.h < H - 4;
+  const tryMode = mini => { ctl.classList.toggle('mini', mini); const w = ctl.offsetWidth, h = ctl.offsetHeight;
+    for (const cd of cands) { const r = rectFor(cd, w, h); if (inStage(r) && !rectHits(r, o)) return r; } return null; };
+  let r = tryMode(false), mini = false;
+  if (!r) { mini = true; r = tryMode(true);
+    if (r && scrUserOpen) { ctl.classList.remove('mini'); const w = ctl.offsetWidth, h = ctl.offsetHeight; const cd = cands[0]; r = rectFor(cd, w, h); mini = false; } }
+  if (!r) { ctl.style.display = 'none'; return; }
+  ctl.style.left = r.x + 'px'; ctl.style.top = r.y + 'px'; ctl.dataset.mini = mini ? '1' : '';
+}
+$('scr-icon').addEventListener('click', () => { scrUserOpen = true; });
+$('scrctl').addEventListener('pointerleave', () => { if (!$('scrctl').classList.contains('dragging')) setTimeout(() => { if (!$('scrctl').matches(':hover')) scrUserOpen = false; }, 1500); });
+$('r-scrt').addEventListener('pointerdown', () => $('scrctl').classList.add('dragging'));
+window.addEventListener('pointerup', () => $('scrctl').classList.remove('dragging'));
+
+/* ================= 放大鏡 3D 近拍 ================= */
+let lensW = 0, lensH = 0;
+function renderLens() {
+  const msg = $('lens-msg');
+  const collapsed = $('mag').classList.contains('collapsed');
+  if (collapsed || S.magTab !== '3d') return;
+  msg.style.display = G.valid ? 'none' : 'flex'; if (!G.valid) return;
+  const w = lensHole.clientWidth, h = lensHole.clientHeight;
+  if (w < 4 || h < 4) return;
+  if (w !== lensW || h !== lensH) { lensW = w; lensH = h; lensRenderer.setSize(w, h, false); }
+  const tgt = w3(G.C[0], G.C[1], HB + 0.3);
+  const dir = camera.position.clone().sub(controls.target); dir.y = Math.max(dir.y, Math.hypot(dir.x, dir.z) * 0.95); dir.normalize();
+  lensCam.position.copy(tgt).addScaledVector(dir, S.lensDist); lensCam.aspect = w / h; lensCam.updateProjectionMatrix(); lensCam.lookAt(tgt);
+  lensCam.layers.set(0); lensCam.layers.enable(1); if (S.showB) lensCam.layers.enable(2);
+  waveMats.forEach(m => m.resolution.set(w, h));
+  lensRenderer.render(scene, lensCam);
+}
+
+/* ================= 主迴圈 ================= */
+let last = performance.now();
+function frame(now, forceDt) {
+  const dt = forceDt !== undefined ? forceDt : Math.min(0.1, (now - last) / 1000); last = now;
+  if (S.playing) { S.theta += TAU * S.freq * dt; if (S.theta > 1e6) S.theta %= TAU * 1024; syncTheta(); }
+  if (needGeom) { needGeom = false; updateGeometry(); updateUI(); }
+  updateZoomAnim(); controls.update();
+  applyLayers();
+  updateWaves(); updateScreen(); updateSpotGlow(); updateOverlay();
+  if (!$('mag').classList.contains('collapsed')) { drawTimeGraph(); if (S.magTab === 'map') drawMap(); updateIndicator(); }
+  waveMats.forEach(m => m.resolution.set(W, H));
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H);
+  renderer.render(scene, camera);
+  renderLens();
+}
+function loop(now) { frame(now); requestAnimationFrame(loop); }
+
+/* ================= 測試掛鉤 ================= */
+window.__interf = {
+  get state() { return { ...S, valid: G.valid }; },
+  setAngle(v) { setA2(v); frame(performance.now(), 0); return S.a2; },
+  setAngle1(v) { setA1(v); frame(performance.now(), 0); return S.a1; },
+  setShift(v) { setS2(v); frame(performance.now(), 0); return S.s2; },
+  setLambda(v) { setLam(v); frame(performance.now(), 0); },
+  setFreqRatio(v) { setFr(v, true); frame(performance.now(), 0); return S.fr; },
+  envelope(th) { const g = compute(S); return g.valid ? envelopeAt(g, th === undefined ? S.theta : th) : null; },
+  meanBrightnessAtC(T) { const g = compute(S); if (!g.valid) return null; let a = 0, n = 20000; for (let i = 0; i < n; i++) { const f = crossingFields(g, T * i / n); a += (f.sum / 2) ** 2; } return 2 * a / n; },
+  setPhase(t) { S.theta = t; syncTheta(); frame(performance.now(), 0); },
+  pause() { setPlaying(false); }, play() { setPlaying(true); },
+  setSpeed(f) { S.freq = f; updateUI(); frame(performance.now(), 0); },
+  eye() { const E = eyeSetup(); return { G: E.a.G, gain: E.gain, waveFade: waveFade(S.freq) }; },
+  brightC(th) { return brightnessAtC(th === undefined ? S.theta : th); },
+  sliderToF, fToSlider,
+  bandVis() { return { E: bandE.map(b => b.visible), op: bandE[0].material.opacity, bar: sumBar.visible, barH: sumBar.scale.y }; },
+  lensPixel(x, y) { const gl = lensRenderer.getContext(), d = new Uint8Array(4); gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, d); return [d[0], d[1], d[2]]; },
+  lensSize() { return { w: lensRenderer.domElement.width, h: lensRenderer.domElement.height }; },
+  setMode(m) { setMode(m); frame(performance.now(), 0); }, setB(b) { setB(b); frame(performance.now(), 0); },
+  setScreen(b) { setScreen(b); frame(performance.now(), 0); }, setScreenTransparency(v) { setScrT(v); frame(performance.now(), 0); },
+  scrCtlRect() { const r = $('scrctl'); const b = r.getBoundingClientRect(); return { shown: r.style.display !== 'none', mini: r.classList.contains('mini'), x: b.x, y: b.y, w: b.width, h: b.height }; },
+  scrCtlClear() { const el = $('scrctl'); if (el.style.display === 'none' || !G.valid) return { shown: false, clear: true }; const st = wrap.getBoundingClientRect(), b = el.getBoundingClientRect(); const c = proj(w3(G.C[0], G.C[1], HB));
+    return { shown: true, mini: el.classList.contains('mini'), clear: !rectHits({ x: b.x - st.x, y: b.y - st.y, w: b.width, h: b.height }, scrObstacles(c)) }; },
+  orbitBy(az, pol) { const t = controls.target, off = camera.position.clone().sub(t), sp = new THREE.Spherical().setFromVector3(off); sp.theta += az; sp.phi = clamp(sp.phi + pol, 0.15, Math.PI / 2 - 0.05); off.setFromSpherical(sp); camera.position.copy(t).add(off); controls.update(); userMoved = true; frame(performance.now(), 0); },
+  resetView() { $('btn-view-reset').click(); frame(performance.now(), 0); },
+  navState() { return { target: controls.target.toArray(), cam: camera.position.toArray() }; },
+  orbitTo(az, pol) { const t = controls.target, off = camera.position.clone().sub(t), d = off.length(); camera.position.set(t.x + d * Math.sin(pol) * Math.sin(az), t.y + d * Math.cos(pol), t.z + d * Math.sin(pol) * Math.cos(az)); controls.update(); userMoved = true; frame(performance.now(), 0); }, setAvg(b) { S.avg = b; updateUI(); frame(performance.now(), 0); },
+  setTab(t) { setTab(t); frame(performance.now(), 0); },
+  getPhaseDiff() { const g = compute(S); return g.valid ? { valid: true, coherent: g.coh, phi0: g.phi0, lam1: g.lam1, lam2: g.lam2, t1: g.t1, t2: g.t2, delta: g.delta, deltaOverLambda: g.dl, dphi: g.dphi, R: g.R, cls: g.coh ? classify(g.R) : 'incoherent', alphaDeg: g.alpha / D2R } : { valid: false }; },
+  fieldAtCrossing(th) { const g = compute(S); if (!g.valid) return null; const f = crossingFields(g, th === undefined ? S.theta : th); return { ...f, C: g.C }; },
+  gotoDestructive() { const a = nearestRoot('dest'); if (a !== null) setA2(a, true); frame(performance.now(), 0); return a; },
+  gotoConstructive() { const a = nearestRoot('cons'); if (a !== null) setA2(a, true); frame(performance.now(), 0); return a; },
+  roots() { return { dest: findRoots().dest.slice(), cons: findRoots().cons.slice() }; },
+  projectedCrossing() { if (!G.valid) return null; const c = proj(w3(G.C[0], G.C[1], HB)); return { x: c.x, y: c.y, W, H }; },
+  rects() { const rc = id => { const r = $(id).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
+    return { mag: rc('mag'), side: rc('side'), stage: rc('stage'), lens: rc('lens-hole'), viewbar: rc('viewbar') }; },
+  spotBrightness() { const d = scrCtx.getImageData(128, 90, 1, 1).data; return (d[0] + d[1] + d[2]) / 3; },
+  screenPixel(px, py) { const d = scrCtx.getImageData(px, py, 1, 1).data; return [d[0], d[1], d[2]]; },
+  update() { frame(performance.now(), 0); },
+  knobScreenPos(id) { const v = new THREE.Vector3(); dials[id - 1].knob.getWorldPosition(v); const p = proj(v); const r = renderer.domElement.getBoundingClientRect(); return { x: r.left + p.x, y: r.top + p.y }; },
+  penScreenPos(id) { const v = new THREE.Vector3(); pens[id - 1].meshes[0].getWorldPosition(v); const p = proj(v); const r = renderer.domElement.getBoundingClientRect(); return { x: r.left + p.x, y: r.top + p.y }; },
+  waveVis() { return { E: wE.map(w => w.line.visible), B: wB.map(w => w.line.visible), sum: wSum.line.visible, camMask: camera.layers.mask, lensMask: lensCam.layers.mask }; },
+  wave2() { const d = wE[1].line.geometry.attributes.instanceStart.data.array; let c = 0, prev = d[1] - HB; const n = d.length / 6; for (let j = 1; j < n; j++) { const v = d[6 * j + 1] - HB; if (prev * v < 0) c++; prev = v; } return { len: beams[1].len, lam2: G.lam2, zeroCrossings: c, expectedCycles: beams[1].len / G.lam2 }; },
+  arrowLens() { return { e1: arrows.e1.visible, sum: arrows.sum.visible }; },
+  arrowScreen(name, f) { const a = arrows[name]; const v = new THREE.Vector3(); a.userData.shaft.getWorldPosition(v); const p = proj(v); const r = renderer.domElement.getBoundingClientRect(); return { x: r.left + p.x, y: r.top + p.y, vis: a.visible }; },
+  THREE, camera, lensCam, controls, scene, renderer, lensRenderer, G: () => G, compute
+};
+
+onResize(); applyLayers(); setTab('3d'); updateGeometry(); updateUI(); syncTheta();
+if (window.innerHeight < 560 || window.innerWidth < 640) { $('mag').classList.add('collapsed'); $('mag-toggle').textContent = '▲展開'; }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
