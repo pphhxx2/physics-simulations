@@ -48,10 +48,9 @@ label.sl{min-width:92px;font-weight:700}input[type=range]{flex:1;min-width:70px}
    <div id="parBox" style="display:none">
     <div class="row"><label class="sl">θ <span id="thv"></span>°</label><button class="hold" data-k="th" data-s="-0.1">－</button><input type="range" id="th" min="0" max="40" step="0.1"><button class="hold" data-k="th" data-s="0.1">＋</button></div>
     <div class="row"><label class="sl">L = <span id="ldv"></span>d</label><button class="hold" data-k="lg" data-s="-2">－</button><input type="range" id="lg" min="0" max="100" step="1"><button class="hold" data-k="lg" data-s="2">＋</button></div>
-    <div class="row"><button id="tWave" class="on">橫波示意</button></div>
+    <div class="row"><button id="tWave" class="on">橫波示意</button><button id="tWF">可移動波前</button></div>
     <div class="row ord"><button id="snapB">θ 對齊亮紋</button><button class="ost" id="obM">‹</button><span id="obV" class="ov"></span><button class="ost" id="obP">›</button></div>
     <div class="row ord"><button id="snapD">θ 對齊暗紋</button><button class="ost" id="odM">‹</button><span id="odV" class="ov"></span><button class="ost" id="odP">›</button></div>
-    <div id="parTxt" style="font-size:15px;font-weight:700;line-height:1.5"></div>
    </div></div>
   <div class="sec"><h3>顯示</h3>
    <div class="row"><button id="tAnti" class="on"><span class="lg" style="background:var(--anti)"></span>腹線</button><button id="tNode" class="on"><span class="lg" style="background:var(--node)"></span>節線</button><button id="tCrest">只畫波峰</button></div>
@@ -187,8 +186,8 @@ function drawParallel(){const w=TW,h=H;ctx.save();ctx.beginPath();ctx.rect(0,0,w
   const t1=`精確 Δ = ${ff.exact.toFixed(4)} d　　d sinθ = ${ff.approx.toFixed(4)} d　　差 ${P.th>0?ff.diffPct.toFixed(2)+'%':'—'}`;
   const mm2=dl*ff.approx,t2=`d sinθ = ${mm2.toFixed(2)}λ → ${Math.abs(mm2-Math.round(mm2))<0.05?'亮（m = '+Math.round(mm2)+'）':Math.abs(mm2-Math.round(mm2))>0.45?'暗':'介於亮暗之間'}`;
   const colW=Math.round(Math.max(96,Math.min(180,w*0.22))),ZR=[w-colW-6,6,colW,h-12];
-  const tmw=Math.max(ctx.measureText(t1).width,ctx.measureText(t2).width),tfs=Math.max(11,Math.min(18,18*(ZR[0]-36)/tmw));ctx.font=`bold ${tfs}px sans-serif`;
-  const TB=[8,h-80,Math.max(ctx.measureText(t1).width,ctx.measureText(t2).width)+18,58];
+  const tmw=ctx.measureText(t2).width,tfs=Math.max(11,Math.min(18,18*(ZR[0]-36)/tmw));ctx.font=`bold ${tfs}px sans-serif`;
+  const TB=[8,h-52,ctx.measureText(t2).width+18,38];
   // rays as sampled envelopes (used for layout + tests)
   const rays=[S1,S2].map(S=>{const rl=Math.hypot(Pp[0]-S[0],Pp[1]-S[1]);return {S,e:[(Pp[0]-S[0])/rl,(Pp[1]-S[1])/rl],len:Math.min(rl,w*1.6)};});
   const rectHit=(r,x,y,pad)=>x>r[0]-pad&&x<r[0]+r[2]+pad&&y>r[1]-pad&&y<r[1]+r[3]+pad;
@@ -229,7 +228,7 @@ function drawParallel(){const w=TW,h=H;ctx.save();ctx.beginPath();ctx.rect(0,0,w
     mk(S1,rays[0].e[0],rays[0].e[1],0,'#7b1fa2',rays[0].pf);
     GEO={S2:[...S2],wx,wy,proj,lpx:l2};const gp=mk(S2,wx,wy,qg,'#00897b',rays[1].pf);GM={x:S2[0]+wx*qg,y:S2[1]+wy*qg,mx:gp[0],my:gp[1]};
     // movable common wavefront (second perpendicular) beyond the foot: equal extra path u on both rays
-    WFG=null;{const e1=rays[0].e,umax=Math.min(rays[0].len,rays[1].len-proj)-14;if(umax>lpx){const u=WFf*umax,p1=[S1[0]+e1[0]*u,S1[1]+e1[1]*u],p2=[S2[0]+wx*(proj+u),S2[1]+wy*(proj+u)];
+    WFG=null;if(wfOn){const e1=rays[0].e,umax=Math.min(rays[0].len,rays[1].len-proj)-14;if(umax>lpx){const u=WFf*umax,p1=[S1[0]+e1[0]*u,S1[1]+e1[1]*u],p2=[S2[0]+wx*(proj+u),S2[1]+wy*(proj+u)];
       const dx=p1[0]-p2[0],dy=p1[1]-p2[1],dn=Math.hypot(dx,dy)||1,ex2=dx/dn*22,ey2=dy/dn*22;
       ctx.strokeStyle='#e65100';ctx.lineWidth=2.2;ctx.setLineDash([10,5]);ctx.beginPath();ctx.moveTo(p2[0]-ex2,p2[1]-ey2);ctx.lineTo(p1[0]+ex2,p1[1]+ey2);ctx.stroke();ctx.setLineDash([]);
       const mid=[(p1[0]+p2[0])/2,(p1[1]+p2[1])/2];ctx.fillStyle='#e65100';ctx.save();ctx.translate(...mid);ctx.rotate(Math.atan2(wy,wx));ctx.fillRect(-7,-9,14,18);ctx.fillStyle='#fff';ctx.fillRect(-4,-5,2,10);ctx.fillRect(2,-5,2,10);ctx.restore();
@@ -268,8 +267,8 @@ function drawParallel(){const w=TW,h=H;ctx.save();ctx.beginPath();ctx.rect(0,0,w
   drawInset(IR,Ld,t,dl);drawZoom(ZR,Ld,t,dl);
   // compact comparison
   ctx.font='bold 18px sans-serif';ctx.fillStyle='rgba(255,255,255,0.94)';ctx.strokeStyle='#cfd8e3';ctx.lineWidth=1;ctx.fillRect(...TB);ctx.strokeRect(...TB);ctx.fillStyle='#1b2430';
-  ctx.font=`bold ${tfs}px sans-serif`;ctx.fillText(t1,16,h-56);ctx.fillText(t2,16,h-28);
-  $('parTxt').textContent=`差 ${P.th>0?ff.diffPct.toFixed(2)+'%':'—'}（L 越大越小）　d sinθ/λ = ${(dl*ff.approx).toFixed(2)}`;
+  ctx.font=`bold ${tfs}px sans-serif`;ctx.fillText(t2,16,h-27);
+  
   ctx.restore();}
 // 全圖 inset: geometry to scale on the left; on the right a zoomed strip of the screen around P with bright (m) and dark marks
 function drawInset(R,Ld,t,dl){const [bx,by,bw,bh]=R;ctx.save();ctx.fillStyle='#f4f7fb';ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle='#9aa4ae';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
@@ -278,9 +277,13 @@ function drawInset(R,Ld,t,dl){const [bx,by,bw,bh]=R;ctx.save();ctx.fillStyle='#f
   ctx.strokeStyle='#1b2430';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(Px,top-4);ctx.lineTo(Px,bot+4);ctx.stroke();
   ctx.strokeStyle='#d32f2f';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(ox,oy-0.5*sc);ctx.lineTo(Px,Py);ctx.moveTo(ox,oy+0.5*sc);ctx.lineTo(Px,Py);ctx.stroke();
   ctx.setLineDash([3,3]);ctx.strokeStyle='#8a96a3';ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(Px,oy);ctx.stroke();ctx.setLineDash([]);
-  ctx.fillStyle='#7a2fc0';ctx.beginPath();ctx.arc(Px,Py,4,0,7);ctx.fill();
+  // fringe marks like the teacher's sketch: short thick rounded bars across the screen line, orange = bright, black = dark, no text
+  const im=[];for(let k=0;k<=2*Math.floor(dl)+1;k++){const v=k/2;if(v>=dl)break;const y=Ld*Math.tan(Math.asin(v/dl)),py=oy-y*sc;if(py<top-2)break;im.push({type:k%2?'dark':'bright',val:v,py});}
+  let st=1;const gap=im.length>1?(im[0].py-im[im.length-1].py)/(im.length-1):99;while(gap*st<7&&st<64)st*=2;
+  ctx.lineCap='round';ctx.lineWidth=5;for(const q of (st===1?im:im.filter(q=>q.type==='bright'&&Math.round(q.val)%st===0))){ctx.strokeStyle=q.type==='bright'?'#ff6d00':'#111';ctx.beginPath();ctx.moveTo(Px-6,q.py);ctx.lineTo(Px+6,q.py);ctx.stroke();}ctx.lineCap='butt';
+  ctx.fillStyle='#7a2fc0';ctx.beginPath();ctx.arc(Px,Py,3.5,0,7);ctx.fill();
   ctx.font='bold 13px sans-serif';ctx.fillStyle='#1b2430';ctx.fillText(`全圖：L = ${Math.round(Ld)}d`,bx+6,by+bh-6);
-  INSG={Px,Py,sc,oy,yP};ctx.restore();}
+  INSG={Px,Py,sc,oy,yP,marks:im,stride:st};ctx.restore();}
 // zoom column: the screen around P, large, with bright (m) and dark marks
 function drawZoom(R,Ld,t,dl){const [bx,by,bw,bh]=R;ctx.save();ctx.fillStyle='#f4f7fb';ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle='#9aa4ae';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
   const fs=Math.round(Math.max(13,Math.min(16,bw*0.1))),top=by+44,bot=by+bh-30,yP=Ld*Math.tan(t);
@@ -304,7 +307,7 @@ function drawZoom(R,Ld,t,dl){const [bx,by,bw,bh]=R;ctx.save();ctx.fillStyle='#f4
   ctx.textBaseline='alphabetic';ctx.font=`bold ${fs}px sans-serif`;ctx.fillStyle='#7a2fc0';ctx.fillText(`P：${pst}`,bx+8,by+bh-9);
   const G=INSG||{};INS={marks,yP,hw,zc,zh,Px:G.Px,Py:G.Py,sc:G.sc,oy:G.oy,rect:[...R],font:fs,dot:rr,strip:[zx,top,zw,bot-top]};ctx.restore();}
 let INSG=null;
-let LBL=null,PG=null,INS=null,VERD=null,WFG=null,WFf=0.5,wdrag=false;var SEL=null;
+let LBL=null,PG=null,INS=null,VERD=null,WFG=null,WFf=0.5,wdrag=false,wfOn=false;var SEL=null;
 let GF=0,GEO=null,GM=null,gdrag=false,OP={},FF=null,WV=null,wave=true;
 // ---------- UI ----------
 function fmt(){if(typeof ordUI==='function')ordUI();$('lv').textContent=P.lam.toFixed(1);$('dv').textContent=P.d.toFixed(1);$('Lv').textContent=P.L.toFixed(1);$('spv').textContent=P.sp.toFixed(1);
@@ -317,7 +320,7 @@ for(const k of ['lam','L','sp','th','lg'])$(k).oninput=e=>setP(k,+e.target.value
 function hold(btn,fn){let to,iv;const stop=()=>{clearTimeout(to);clearInterval(iv);};btn.addEventListener('pointerdown',e=>{e.preventDefault();stop();fn();to=setTimeout(()=>iv=setInterval(fn,60),400);});['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop));}
 document.querySelectorAll('.hold').forEach(b=>hold(b,()=>b.dataset.k==='d'?setP('d',dOf(Math.round(sOf(P.d))+ +b.dataset.s)):setP(b.dataset.k,P[b.dataset.k]+ +b.dataset.s)));
 const tog=(id,f)=>$(id).onclick=()=>{const v=f();$(id).classList.toggle('on',v);};
-tog('tAnti',()=>anti=!anti);tog('tNode',()=>node=!node);tog('tCrest',()=>crestOnly=!crestOnly);tog('tEye',()=>eye=!eye);tog('tWave',()=>wave=!wave);
+tog('tAnti',()=>anti=!anti);tog('tNode',()=>node=!node);tog('tCrest',()=>crestOnly=!crestOnly);tog('tEye',()=>eye=!eye);tog('tWave',()=>wave=!wave);tog('tWF',()=>wfOn=!wfOn);
 /* fringe orders: bright d sinθ = mλ (m = 0…mB), dark d sinθ = (n−½)λ (第n暗紋, n = 1…nD), all within θ ≤ 40° */
 var ordB=1,ordD=2;const ordMax=()=>{const x=P.d/P.lam*Math.sin(40*Math.PI/180);return {mB:Math.floor(x+1e-9),nD:Math.floor(x+0.5+1e-9)};};
 function ordUI(){const o=ordMax();ordB=Math.max(0,Math.min(ordB,o.mB));ordD=Math.max(1,Math.min(ordD,Math.max(1,o.nD)));
@@ -361,7 +364,7 @@ function frame(now){zoom();const dt=Math.min(0.05,(now-last)/1000);last=now;fram
   const pi=probeInfo();$('probeTxt').textContent=`Δ = |r₁−r₂| = ${pi.D.toFixed(2)}λ → ${pi.t}`;
   let cap=mm>0.5?'光通過雙狹縫後，兩狹縫就像兩個同相的點波源（惠更斯原理）——干涉圖樣和水波完全一樣。':'兩個同相點波源：Δ = mλ 在腹線上（亮），Δ = (m+½)λ 在節線上（暗）。';
   if(par)cap=LdOf()<10?`L 只有 ${Math.round(LdOf())}d：兩光線明顯不平行，Δ 與 d sinθ 有差距；把 L 拉大看看。`:'L ≫ d：兩光線幾乎平行，Δ ≈ d sinθ；d sinθ = mλ 為亮紋。';
-  const ca=par?0:Math.min(1,Math.max(0,(P.d/P.lam-15)/10));OP.cap=ca;if($('capA').textContent!==cap)$('capA').textContent=cap;$('capA').style.opacity=1-ca;$('capB').style.opacity=ca;
+  const capShow=par?'none':'';if($('caption').style.display!==capShow)$('caption').style.display=capShow;const ca=par?0:Math.min(1,Math.max(0,(P.d/P.lam-15)/10));OP.cap=ca;if($('capA').textContent!==cap)$('capA').textContent=cap;$('capA').style.opacity=1-ca;$('capB').style.opacity=ca;
   requestAnimationFrame(frame);}
 fmt();layout();requestAnimationFrame(frame);
 window.__ds={P,probe,setP,setMode,setProbe,
@@ -369,7 +372,7 @@ window.__ds={P,probe,setP,setMode,setProbe,
   isIdle:()=>Math.abs(mm-mmTarget)<1e-6,
   screenMaxima:()=>{const xs=XS+P.L,out=[];let prev=-1,pp=-1;const st=0.005;for(let y=-14;y<=14;y+=st){const v=intensity(xs,y);if(prev>pp&&prev>v)out.push(+(y-st).toFixed(3));pp=prev;prev=v;}return out;},
   theory:m=>ySolve(XS+P.L,m*P.lam),contrast:()=>IC.contrast,farField,LdOf,ff:()=>FF,lines:()=>LINES_HIDDEN,aa:()=>AA,pathDiff:(x,y)=>pathDiff(x,y),
-  toggle:id=>$(id).click(),wave:()=>WV,wf:()=>WFG&&{...WFG},setWF:v=>{WFf=v;},pg:()=>PG,ins:()=>INS,orders:()=>({ordB,ordD,...ordMax(),sel:SEL}),setGF:v=>{GF=v;},gm:()=>GM&&{...GM},geo:()=>GEO&&{...GEO},opac:()=>({...OP})};
+  toggle:id=>$(id).click(),wave:()=>WV,wf:()=>WFG&&{...WFG},setWF:v=>{WFf=v;},pg:()=>PG,ins:()=>INS,insg:()=>INSG&&{...INSG},orders:()=>({ordB,ordD,...ordMax(),sel:SEL}),setGF:v=>{GF=v;},gm:()=>GM&&{...GM},geo:()=>GEO&&{...GEO},opac:()=>({...OP})};
 </script>
 </body>
 </html>
