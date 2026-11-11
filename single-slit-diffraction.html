@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>單狹縫繞射</title>
+<style>
+:root{--bg:#eef2f7;--panel:#fff;--ink:#1b2430;--muted:#5a6878;--line:#cfd8e3;--btn:#f3f6fa;--btnh:#e3ebf5;--on:#1f6fd6;--cap:#fffbe8;--crest:#1f5fd0;--trough:#e0702a;--dark:#2e7d32}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif}
+#app{display:grid;grid-template-columns:1fr 320px;height:100vh}
+#main{display:flex;flex-direction:column;min-width:0;min-height:0}
+#title{padding:6px 14px;font-size:22px;font-weight:800}
+#view{position:relative;flex:1;min-height:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#f7f9fc;touch-action:none}
+#view canvas{position:absolute;display:block}
+#gl{left:0;top:0}
+#ov{left:0;top:0;width:100%;height:100%}
+#caption{padding:8px 14px;font-size:19px;font-weight:600;background:var(--cap);min-height:44px;display:grid}#caption>span{grid-area:1/1}
+#side{overflow-y:auto;background:var(--panel);border-left:1px solid var(--line);padding:8px 10px;font-size:15px}
+.sec{margin-bottom:10px}.sec h3{margin:3px 0 6px;font-size:15px;color:var(--muted)}
+.row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
+button{font:inherit;font-size:15px;padding:6px 9px;border:1px solid var(--line);background:var(--btn);color:var(--ink);border-radius:7px;cursor:pointer;user-select:none;touch-action:manipulation}
+button:disabled{opacity:.35;cursor:default}.ord{gap:4px}.ost{padding:3px 8px;font-size:15px}.ov{min-width:92px;text-align:center;font-weight:700;font-size:14px}button:hover{background:var(--btnh)}button.on{background:var(--on);color:#fff;border-color:var(--on)}
+label.sl{min-width:92px;font-weight:700}input[type=range]{flex:1;min-width:70px}
+.big{font-size:19px;font-weight:800;color:var(--on)}
+.lg{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:3px}
+@media (max-width:820px){#app{grid-template-columns:1fr;height:auto}#main{height:72vh}#side{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div id="app">
+ <div id="main">
+  <div id="title">單狹縫繞射</div>
+  <div id="view"><canvas id="gl"></canvas><canvas id="ov"></canvas></div>
+  <div id="caption"><span id="capA"></span><span id="capS">a ≲ λ：沒有暗紋，光幾乎均勻散開</span><span id="capL">a ≫ λ：中央亮紋很窄，接近幾何陰影</span></div>
+ </div>
+ <div id="side">
+  <div class="sec"><h3>參數</h3>
+   <div class="row"><label class="sl">波長 λ <span id="lv"></span></label><button class="hold" data-k="lam" data-s="-0.05">－</button><input type="range" id="lam" min="0.3" max="3" step="0.01"><button class="hold" data-k="lam" data-s="0.05">＋</button></div>
+   <div class="row"><label class="sl">縫寬 a <span id="av"></span></label><button class="hold" data-k="a" data-s="-1">－</button><input type="range" id="a" min="0" max="100" step="0.25"><button class="hold" data-k="a" data-s="1">＋</button></div>
+   <div class="row"><label class="sl">屏距 L <span id="Lv"></span></label><button class="hold" data-k="L" data-s="-0.5">－</button><input type="range" id="L" min="10" max="26" step="0.1"><button class="hold" data-k="L" data-s="0.5">＋</button></div>
+   <div>a/λ = <b id="al" class="big"></b>　中央亮紋寬 ≈ 2Lλ/a = <b id="cw"></b></div></div>
+  <div class="sec"><h3>遠屏近似</h3>
+   <div class="row"><button id="tPar">平行光近似（L ≫ a）</button></div>
+   <div id="parBox" style="display:none">
+    <div class="row"><label class="sl">θ <span id="thv"></span>°</label><button class="hold" data-k="th" data-s="-0.1">－</button><input type="range" id="th" min="0" max="50" step="0.1"><button class="hold" data-k="th" data-s="0.1">＋</button></div>
+    <div class="row"><label class="sl">L = <span id="ldv"></span>a</label><button class="hold" data-k="lg" data-s="-2">－</button><input type="range" id="lg" min="0" max="100" step="1"><button class="hold" data-k="lg" data-s="2">＋</button></div>
+    <div class="row"><button id="tWave" class="on">橫波示意</button><button id="tZone" class="on">分帶</button></div>
+    <div class="row ord"><span style="font-weight:700">高亮光線</span><button class="ost" id="hlM">‹</button><span id="hlV" class="ov">全部</span><button class="ost" id="hlP">›</button></div>
+    <div class="row ord"><button id="snapD">θ 對齊暗紋</button><button class="ost" id="odM">‹</button><span id="odV" class="ov"></span><button class="ost" id="odP">›</button></div>
+    <div class="row ord"><button id="snapB">θ 對齊亮紋</button><button class="ost" id="obM">‹</button><span id="obV" class="ov"></span><button class="ost" id="obP">›</button></div>
+   </div></div>
+  <div class="sec"><h3>顯示</h3>
+   <div class="row"><button id="tSrc">子波源</button><button id="tDir" class="on"><span class="lg" style="background:var(--dark)"></span>暗紋方向</button></div>
+   <div class="row"><span><span class="lg" style="background:var(--crest)"></span>波峰</span><span><span class="lg" style="background:var(--trough)"></span>波谷</span><span><span class="lg" style="background:#e9edf2;border:1px solid #bbb"></span>平靜</span></div></div>
+  <div class="sec"><h3>動畫</h3>
+   <div class="row"><button id="play" class="on">❚❚ 暫停</button></div>
+   <div class="row"><label class="sl">速度 <span id="spv"></span></label><button class="hold" data-k="sp" data-s="-0.1">－</button><input type="range" id="sp" min="0.1" max="2" step="0.1"><button class="hold" data-k="sp" data-s="0.1">＋</button></div></div>
+  <div class="sec"><h3>探針</h3><div id="probeTxt" style="font-size:17px;font-weight:700;line-height:1.45"></div><div style="font-size:13px;color:var(--muted)">拖曳紫色點（場中或屏幕上）</div></div>
+ </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const P={lam:0.8,a:3.2,L:20,sp:0.6,th:12,lg:40};let par=false,wave=true,zones=true,showSrc=false,showDir=true,playing=true,phase=0;
+const XS=6,XMAX=XS+26+1.2,NSH=32;          // slit x; world width; # Huygens wavelets in the shader
+const SM=[1.4303,2.4590,3.4709,4.4774,5.4818,6.4844,7.4865,8.4880]; // secondary maxima: tanβ=β, a sinθ/λ values
+const TH_MAX=50;
+const LdOf=()=>2*Math.pow(100,P.lg/100);   // L/a 2…200 (log)
+const probe={x:XS+P.L,y:4,onScreen:true};
+// ---------- physics: Huygens wavelets across the slit ----------
+const f2=v=>(v<-0.005?'−':'')+Math.abs(v).toFixed(2);
+const sinc=z=>Math.abs(z)<1e-4?1:Math.sin(z)/z;
+// complex field at (x,y) from N in-phase wavelets; each sub-strip of width s gets its own far-field factor sinc(k s sinφ/2) (= exact strip integral, kills sampling lobes)
+function field(x,y,N){const a=P.a,k=2*Math.PI/P.lam,s=a/N;let re=0,im=0;const dx=x-XS;
+  for(let j=0;j<N;j++){const yj=-a/2+(j+0.5)*s,dy=y-yj,r=Math.hypot(dx,dy),A=s*sinc(k*s*dy/Math.max(r,1e-6)/2)/Math.sqrt(r+0.3);re+=A*Math.cos(k*r);im+=A*Math.sin(k*r);}return [re,im];}
+const NJ=()=>Math.min(400,Math.max(40,Math.ceil(6*P.a/P.lam)));
+function intensity(x,y,N){const [re,im]=field(x,y,N||NJ());return re*re+im*im;}
+function edgeDiff(x,y){return Math.hypot(x-XS,y+P.a/2)-Math.hypot(x-XS,y-P.a/2);} // r_bottom − r_top
+const darkY=m=>{const s=m*P.lam/P.a;return Math.abs(s)>=1?null:P.L*Math.tan(Math.asin(s));};
+function verdict(x){const ax=Math.abs(x),r=Math.round(x);
+  if(ax<0.03)return '中央亮紋（θ = 0）';if(r!==0&&Math.abs(x-r)<0.03)return `暗（m=${r<0?'−':''}${Math.abs(r)}）`;
+  for(const v of SM)if(Math.abs(ax-v)<0.04)return '亮（次亮紋）';if(ax<1)return '中央亮紋內';return '介於亮暗之間';}
+function farField(Ld,thDeg){const t=thDeg*Math.PI/180,yp=Ld*Math.tan(t),ex=Math.hypot(Ld,yp+0.5)-Math.hypot(Ld,yp-0.5),ap=Math.sin(t);return {exact:ex,approx:ap,diffPct:ap>1e-9?Math.abs(ex-ap)/ap*100:0};}
+// ---------- WebGL field ----------
+const gl=$('gl').getContext('webgl',{antialias:false,preserveDrawingBuffer:true});
+const vs=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
+const fs=`precision highp float;uniform vec2 res;uniform float scale,y0,k,ph,xs,a,n,xscr,aa,gain;
+void main(){vec2 f=gl_FragCoord.xy;float x=f.x/scale;float y=y0-(res.y-f.y)/scale;float u;
+ if(x<xs){u=0.55*cos(k*(x-xs)-ph);}
+ else{float s=a/n,sum=0.;for(int i=0;i<40;i++){if(float(i)>=n)break;float yj=-a*.5+(float(i)+.5)*s;vec2 dv=vec2(x-xs,y-yj);float r=length(dv);
+   float z=k*s*dv.y/max(r,1e-4)*.5;float ef=abs(z)<1e-3?1.:sin(z)/z;sum+=s*ef/sqrt(r+.3)*cos(k*r-ph);}u=gain*sum;}
+ float e=exp(clamp(3.4*u,-20.,20.));float v=(e-1.)/(e+1.);
+ vec3 neu=vec3(.925,.94,.955),cr=vec3(.10,.36,.82),tr=vec3(.90,.45,.16);
+ vec3 c=v>0.?mix(neu,cr,v):mix(neu,tr,-v);c=mix(neu,c,aa);
+ if(x>xscr)c=mix(c,vec3(.97,.975,.98),.85);
+ gl_FragColor=vec4(c,1.);}`;
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(o));return o;}
+const prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);gl.useProgram(prog);
+const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const loc=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+const U={};for(const n of ['res','scale','y0','k','ph','xs','a','n','xscr','aa','gain'])U[n]=gl.getUniformLocation(prog,n);
+// ---------- layout ----------
+const ov=$('ov'),ctx=ov.getContext('2d');let NARROW=false,W=1,H=1,TW=1,SC=1,Y0=0,stripX=0,stripW=0,graphX=0,graphW=0,RS=1;
+function layout(){const r=$('view').getBoundingClientRect();W=r.width;H=r.height;
+  NARROW=W<600;graphW=NARROW?104:Math.round(Math.max(124,Math.min(200,W*0.15)));stripW=Math.round(Math.max(20,Math.min(44,W*0.035)));
+  TW=Math.max(100,W-graphW-stripW-14);stripX=TW+4;graphX=stripX+stripW+6;SC=TW/XMAX;Y0=H/2/SC;
+  RS=Math.min(1,900/TW);const g=$('gl');g.style.width=TW+'px';g.style.height=H+'px';g.width=Math.round(TW*RS);g.height=Math.round(H*RS);gl.viewport(0,0,g.width,g.height);
+  const dpr=Math.min(2,devicePixelRatio);ov.width=W*dpr;ov.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);PLC.key='';}
+new ResizeObserver(layout).observe($('view'));
+const X=x=>x*SC,Yp=y=>(Y0-y)*SC,toW=(px,py)=>[px/SC,Y0-py/SC];
+// ---------- drawing ----------
+let AA=1,GAIN=1,gk='';
+function drawField(){const g=$('gl');const key=P.a+'|'+P.lam;if(key!==gk){gk=key;const [re,im]=field(XS+3,0,NSH);GAIN=0.8/Math.max(1e-6,Math.hypot(re,im));}
+  gl.uniform2f(U.res,g.width,g.height);gl.uniform1f(U.scale,SC*RS);gl.uniform1f(U.y0,Y0);gl.uniform1f(U.k,2*Math.PI/P.lam);gl.uniform1f(U.ph,phase);
+  gl.uniform1f(U.xs,XS);gl.uniform1f(U.a,P.a);gl.uniform1f(U.n,NSH);gl.uniform1f(U.xscr,XS+P.L);gl.uniform1f(U.gain,GAIN);
+  const ppl=P.lam*SC*RS;AA=Math.min(1,Math.max(0,(ppl-3)/3));gl.uniform1f(U.aa,AA);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+const clamp01=v=>Math.min(1,Math.max(0,v));
+let IC={key:''},OP={};
+function fades(){const al=P.a/P.lam,dyPx=SC*P.L*P.lam/P.a,F=P.a*P.a/(P.lam*P.L);
+  return {lab:Math.min(clamp01((dyPx-16)/14),clamp01((5-F)/2.5)),small:clamp01((1.6-al)/0.6),large:clamp01((al-12)/8)};}
+function drawOverlay(){ctx.clearRect(0,0,W,H);ctx.save();ctx.beginPath();ctx.rect(0,0,TW,H);ctx.clip();
+  const lam=P.lam,xscr=XS+P.L,a=P.a,fd=fades();OP.lab=fd.lab;OP.small=fd.small;OP.large=fd.large;
+  // dark-fringe directions a sinθ = mλ
+  const mmax=Math.floor(a/lam-1e-9);
+  if(showDir&&fd.lab>0){ctx.save();ctx.globalAlpha=0.8*fd.lab;ctx.strokeStyle='#2e7d32';ctx.lineWidth=2;ctx.setLineDash([9,7]);
+    for(let m=-mmax;m<=mmax;m++){if(!m)continue;const t=Math.asin(m*lam/a);ctx.beginPath();ctx.moveTo(X(XS),Yp(0));ctx.lineTo(X(xscr),Yp(P.L*Math.tan(t)));ctx.stroke();}ctx.restore();}
+  // barrier with one slit
+  ctx.fillStyle='#39424e';ctx.fillRect(X(XS)-5,0,10,Yp(a/2));ctx.fillRect(X(XS)-5,Yp(-a/2),10,H-Yp(-a/2));
+  ctx.font='bold 16px sans-serif';ctx.fillStyle='rgba(255,255,255,0.85)';ctx.fillRect(4,4,82,24);ctx.fillStyle='#39424e';ctx.fillText('→ 平面波',8,22);
+  // slit width a
+  ctx.strokeStyle='#1b2430';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(X(XS)-14,Yp(a/2));ctx.lineTo(X(XS)-14,Yp(-a/2));ctx.stroke();ctx.fillStyle='#1b2430';ctx.font='bold 17px sans-serif';ctx.fillText('a',X(XS)-28,Yp(0)+6);
+  if(showSrc){const s=a/NSH;for(let j=0;j<NSH;j++){const y=-a/2+(j+0.5)*s;ctx.fillStyle='#fff';ctx.strokeStyle='#1b2430';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(X(XS),Yp(y),Math.max(1.6,Math.min(4,s*SC*0.4)),0,7);ctx.fill();ctx.stroke();}}
+  // screen + L
+  ctx.strokeStyle='#1b2430';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(X(xscr),0);ctx.lineTo(X(xscr),H);ctx.stroke();
+  ctx.strokeStyle='#5a6878';ctx.lineWidth=1.5;const ly=H-14;ctx.beginPath();ctx.moveTo(X(XS),ly);ctx.lineTo(X(xscr),ly);ctx.stroke();ctx.fillStyle='#5a6878';ctx.font='15px sans-serif';ctx.fillText('L',X(XS+P.L/2)-4,ly-5);
+  // probe: paths from both slit edges
+  ctx.lineWidth=2.5;ctx.strokeStyle='#7a2fc0';for(const ey of [a/2,-a/2]){ctx.beginPath();ctx.moveTo(X(XS),Yp(ey));ctx.lineTo(X(probe.x),Yp(probe.y));ctx.stroke();}
+  ctx.fillStyle='#7a2fc0';ctx.beginPath();ctx.arc(X(probe.x),Yp(probe.y),9,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+  {const pi=probeInfo(),t=`Δ = ${f2(pi.D)}λ`;ctx.font='bold 15px sans-serif';const tw=ctx.measureText(t).width+10;let bx=X(probe.x)-tw-14,by=Yp(probe.y)-30;if(bx<X(XS)+12)bx=X(probe.x)+14;by=Math.max(4,Math.min(H-26,by));
+    ctx.fillStyle='rgba(255,255,255,0.92)';ctx.fillRect(bx,by,tw,22);ctx.strokeStyle='#7a2fc0';ctx.lineWidth=1;ctx.strokeRect(bx,by,tw,22);ctx.fillStyle='#7a2fc0';ctx.fillText(t,bx+5,by+16);}
+  ctx.restore();
+  // screen strip + intensity graph from the wavelet sum
+  const n=Math.ceil(H),SS=2,ik=`${lam}|${a}|${P.L}|${n}|${Y0}|${SC}`;
+  if(IC.key!==ik){const N=NJ(),mn=new Float32Array(n),mx=new Float32Array(n),av=new Float32Array(n);let Im=0;
+    for(let i=0;i<n;i++){let lo=1e9,hi=0,s2=0;for(let k=0;k<SS;k++){const v=intensity(xscr,Y0-(i+(k+0.5)/SS)/SC,N);lo=Math.min(lo,v);hi=Math.max(hi,v);s2+=v;}mn[i]=lo;mx[i]=hi;av[i]=s2/SS;if(hi>Im)Im=hi;}
+    IC={key:ik,mn,mx,av,Im};}
+  const {mn,mx,av,Im}=IC;
+  for(let i=0;i<n;i++){const v=Math.pow(av[i]/Im,0.6);ctx.fillStyle=`rgb(${Math.round(15+240*v)},${Math.round(15+90*v)},${Math.round(25+70*v)})`;ctx.fillRect(stripX,i,stripW,1.2);}
+  ctx.strokeStyle='#1b2430';ctx.lineWidth=1;ctx.strokeRect(stripX,0,stripW,H);
+  ctx.fillStyle='#fff';ctx.fillRect(graphX,0,graphW,H);ctx.strokeStyle='#cfd8e3';ctx.strokeRect(graphX,0,graphW,H);
+  const LW=NARROW?44:76,gx=v=>graphX+6+(graphW-LW-6)*v/Im;
+  ctx.fillStyle='rgba(211,47,47,0.35)';for(let i=0;i<n;i++){const p=gx(mn[i]),q=gx(mx[i]);ctx.fillRect(p,i,Math.max(1.5,q-p),1);}
+  ctx.strokeStyle='#d32f2f';ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<n;i++){const px=gx(av[i]);i?ctx.lineTo(px,i):ctx.moveTo(px,i);}ctx.stroke();
+  // labels: 暗紋 m, 中央亮紋 + width bracket (cross-faded)
+  ctx.save();ctx.globalAlpha=fd.lab;ctx.font='bold 14px sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';let lastY=-1e9;const SL=[];
+  if(fd.lab>0)for(let m=-mmax;m<=mmax;m++){if(!m)continue;const y=darkY(m);if(y===null)continue;const py=Yp(y);if(py<8||py>H-8)continue;SL.push(py);
+    ctx.strokeStyle='#2e7d32';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(stripX-6,py);ctx.lineTo(stripX+stripW+4,py);ctx.stroke();    ctx.fillStyle='#2e7d32';ctx.fillText(NARROW?`暗${m<0?'−':'+'}${Math.abs(m)}`:`暗 m=${m<0?'−':'+'}${Math.abs(m)}`,graphX+graphW-3,py);}
+  const y1=darkY(1);
+  if(y1!==null&&Yp(y1)>4){const p1=Yp(y1),p2=Yp(-y1),bx=graphX+graphW-LW+4;ctx.strokeStyle='#1b2430';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bx+4,p1+3);ctx.lineTo(bx,p1+3);ctx.lineTo(bx,p2-3);ctx.lineTo(bx+4,p2-3);ctx.stroke();
+    if(p2-p1>90&&!NARROW){ctx.fillStyle='#1b2430';ctx.font='bold 12px sans-serif';ctx.textAlign='right';ctx.fillText('寬≈2Lλ/a',graphX+graphW-3,Yp(0)+20);}}
+  ctx.restore();
+  ctx.save();ctx.font='bold 14px sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';const cy0=Yp(0);ctx.fillStyle='rgba(255,255,255,0.9)';const ct=NARROW?'中央':'中央亮紋';const cwid=ctx.measureText(ct).width;ctx.fillRect(graphX+graphW-cwid-6,cy0-10,cwid+4,20);ctx.fillStyle='#b71c1c';ctx.fillText(ct,graphX+graphW-3,cy0);ctx.restore();
+  OP.screenLabels=SL;
+  if(par)drawParallel();
+  ctx.textAlign='left';ctx.fillStyle='#5a6878';ctx.font='13px sans-serif';ctx.fillText('屏幕',stripX,H-4);ctx.fillText('強度 I',graphX+6,14);}
+function arc(cx,cy,r,a0,a1){ctx.beginPath();ctx.arc(cx,cy,r,Math.min(a0,a1),Math.max(a0,a1));ctx.stroke();}
+const PAL=['#7b1fa2','#00897b','#1565c0','#ef6c00','#c2185b','#558b2f','#6d4c41','#455a64'];
+let HL=-1,HLK=8,PG=null,INS=null,WFG=null,WFf=0.5,wdrag=false,FF=null,SEL=null,INSG=null,PLC={key:''},dragged=false;
+function drawParallel(){const w=NARROW?W:TW,h=H,fz=n=>`${NARROW?Math.round(n*0.8):n}px sans-serif`;ctx.save();ctx.beginPath();ctx.rect(0,0,w,h);ctx.clip();ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w,h);
+  const Ld=LdOf(),t=P.th*Math.PI/180,al=P.a/P.lam,st=Math.sin(t),D=Math.min(h*0.36,w*0.26),sx=Math.max(64,w*0.15),cy=w<520?h*0.52:h*0.6;
+  const T=[sx,cy-D/2],B=[sx,cy+D/2],M=[sx,cy],e=[Math.cos(t),-st];
+  const N=Math.max(1,Math.min(16,Math.round(2*al*st+1e-9))),Z=N,zw=D/N,K=N===1?8:N===2?4:N===3?3:N===4?2:1,sp=D/(N*K),m=N;if(HL>=K)HL=-1;HLK=K;
+  const lpx=D/al,showW=wave&&lpx>=7,A=showW?Math.min(lpx*0.3,10,sp*0.38):0;
+  const A0=Math.min(lpx*0.3,sp*0.38,10),A2=showW?A0:0;
+  const F=[B[0]+e[0]*D*st,B[1]+e[1]*D*st];
+  const ff=farField(Ld,P.th);FF=ff;const xr=al*st;
+  const t2=`a sinθ = ${xr.toFixed(2)}λ → ${verdict(xr)}`;VERD=t2;
+  const nw=w<520,colW=nw?100:Math.round(Math.max(110,Math.min(200,w*0.22))),ZR=[w-colW-6,6,colW,h-12];
+  const hasIns=ZR[0]-sx>230,bw=hasIns?Math.max(90,Math.min((ZR[0]-sx)*0.36,210)):0,bh=hasIns?Math.min(h*0.28,bw*0.75):0,cands=hasIns?[[ZR[0]-bw-8,h-bh-8,bw,bh],[ZR[0]-bw-8,8,bw,bh]]:[[-999,-999,0,0]];
+  const pdz=al/N*st,zt=N===1?'不分區（1 區）':Math.abs(pdz-0.5)<0.03?(N%2?`分 ${N} 區：${N-1} 區兩兩抵消，剩 1 區 → 亮`:`分 ${N} 區：兩兩抵消 → 暗`):`分 ${N} 區：相鄰區對應光 Δ = ${pdz.toFixed(2)}λ`;ZT=zt;
+  const TL=[t2,zt];
+  ctx.font='bold 17px sans-serif';const tmw=Math.max(...TL.map(q=>ctx.measureText(q).width)),avail=(nw?ZR[0]-14:ZR[0]-bw-30)-18;const tfs=Math.max(nw?9:11,Math.min(17,17*avail/tmw));ctx.font=`bold ${tfs}px sans-serif`;
+  const TB=[6,h-TL.length*(tfs+6)-16,Math.max(...TL.map(q=>ctx.measureText(q).width))+16,TL.length*(tfs+6)+10];
+  // rays: N·K+1 equally spaced points incl. both edges (spacing a/(N·K)); ray i ↔ ray i+K (a/N apart) in the next zone
+  const mk=(i)=>{const eta=i*sp,cls=i%K,on=HL<0||cls===HL;return {S:[sx,T[1]+eta],i,eta,cls,e,len:w*1.6,col:cls===0?'#d32f2f':PAL[(cls-1)%PAL.length],lw:HL>=0&&on?2.6:1.6,alpha:on?1:0.16,pad:A+4,kind:i===0||i===N*K?'edge':'ray'};};
+  const rays=[];for(let i=0;i<=N*K;i++)rays.push(mk(i));
+  const pairs=[];for(let i=0;i+K<=N*K;i++)pairs.push({u:rays[i],l:rays[i+K],c:rays[i].col,cls:i%K});
+  const rectHit=(r,x,y,pad)=>x>r[0]-pad&&x<r[0]+r[2]+pad&&y>r[1]-pad&&y<r[1]+r[3]+pad;
+  const ovl=(a2,b2)=>a2[0]<b2[0]+b2[2]&&b2[0]<a2[0]+a2[2]&&a2[1]<b2[1]+b2[3]&&b2[1]<a2[1]+a2[3];
+  const firstHit=(ray,r,pad)=>{for(let q=0;q<=ray.len;q+=3){if(rectHit(r,ray.S[0]+ray.e[0]*q,ray.S[1]+ray.e[1]*q,pad))return q;}return Infinity;};
+  let IR=cands.find(r=>!ovl(r,TB)&&rays.every(ry=>firstHit(ry,r,ry.pad)===Infinity))||cands.find(r=>!ovl(r,TB))||cands[0];
+  for(const ry of rays){if(ry.S[1]<0||ry.S[1]>h)continue;for(const RR of [IR,ZR,TB]){const q=firstHit(ry,RR,ry.pad+2);if(q<ry.len)ry.len=Math.max(0,q-4);}}
+  // barrier, zones (odd N: adjacent zones pair off, the last one remains → gold), a
+  ctx.fillStyle='#39424e';ctx.fillRect(sx-5,0,10,T[1]);ctx.fillRect(sx-5,B[1],10,h-B[1]);
+  if(zones){ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';for(let z=0;z<Z;z++){const rem=N%2===1&&z===N-1;ctx.fillStyle=rem?'rgba(255,179,0,0.55)':z%2?'rgba(224,112,42,0.30)':'rgba(31,95,208,0.25)';ctx.fillRect(sx-24,T[1]+z*zw,17,zw-1);if(zw>=13){ctx.fillStyle='#1b2430';ctx.fillText(z+1,sx-15.5,T[1]+(z+0.5)*zw);}}ctx.textAlign='left';ctx.textBaseline='alphabetic';}
+  ctx.strokeStyle='#1b2430';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx-34,T[1]);ctx.lineTo(sx-34,B[1]);ctx.moveTo(sx-38,T[1]);ctx.lineTo(sx-30,T[1]);ctx.moveTo(sx-38,B[1]);ctx.lineTo(sx-30,B[1]);ctx.stroke();ctx.fillStyle='#1b2430';ctx.font='bold 20px sans-serif';ctx.fillText('a',sx-54,cy+7);
+  ctx.setLineDash([8,6]);ctx.strokeStyle='#5a6878';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(M[0],M[1]);ctx.lineTo(w,M[1]);ctx.stroke();ctx.beginPath();ctx.moveTo(...M);ctx.lineTo(M[0]+w*e[0],M[1]+w*e[1]);ctx.stroke();ctx.setLineDash([]);
+  const R0=Math.min(w*0.34,h*0.45);ctx.strokeStyle='#1b2430';ctx.lineWidth=2;arc(M[0],M[1],R0,-t,0);
+  // every ray carries its transverse wave (all in phase at the slit); faded rays first, highlighted on top
+  const waveAt=(ry,q)=>{const ph=2*Math.PI*q/lpx-phase;return [ry.S[0]+e[0]*q-e[1]*A*Math.sin(ph),ry.S[1]+e[1]*q+e[0]*A*Math.sin(ph)];};
+  for(const pass of [0,1])for(const ry of rays){if((ry.alpha===1)!==(pass===1))continue;ctx.globalAlpha=ry.alpha;ctx.strokeStyle=ry.col;ctx.lineWidth=ry.lw;ctx.beginPath();
+    if(showW){for(let q=0;q<=ry.len;q+=2){const [x,y]=waveAt(ry,q);q?ctx.lineTo(x,y):ctx.moveTo(x,y);}}else{ctx.moveTo(...ry.S);ctx.lineTo(ry.S[0]+e[0]*ry.len,ry.S[1]+e[1]*ry.len);}ctx.stroke();
+    if(ry.kind==='edge'&&ry.len<w*1.5){const E=[ry.S[0]+e[0]*ry.len,ry.S[1]+e[1]*ry.len];ctx.fillStyle=ry.col;ctx.beginPath();ctx.moveTo(E[0]+e[0]*8,E[1]+e[1]*8);ctx.lineTo(E[0]-e[1]*5,E[1]+e[0]*5);ctx.lineTo(E[0]+e[1]*5,E[1]-e[0]*5);ctx.fill();}}
+  ctx.globalAlpha=1;
+  ctx.setLineDash([5,5]);ctx.strokeStyle='#1b2430';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(...T);ctx.lineTo(...F);ctx.stroke();ctx.setLineDash([]);
+  if(D*st>12){const nx=T[0]-F[0],ny=T[1]-F[1],nl=Math.hypot(nx,ny)||1,q9=8;ctx.beginPath();ctx.moveTo(F[0]+e[0]*q9,F[1]+e[1]*q9);ctx.lineTo(F[0]+e[0]*q9+nx/nl*q9,F[1]+e[1]*q9+ny/nl*q9);ctx.lineTo(F[0]+nx/nl*q9,F[1]+ny/nl*q9);ctx.stroke();}
+  ctx.strokeStyle='rgba(243,156,18,0.85)';ctx.lineWidth=8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(...B);ctx.lineTo(...F);ctx.stroke();ctx.lineCap='butt';
+  if(t>0.01){ctx.strokeStyle='#1b2430';ctx.lineWidth=2;const r2=Math.min(30,D*0.25);arc(T[0],T[1],r2,Math.PI/2-t,Math.PI/2);}
+  // reference correspondence: ray i0 (zone 1) ↔ ray i0+K (zone 2); perpendicular shows Δ = (a/N) sinθ
+  const c0=HL>=0?HL:Math.floor(K/2),i0=K===1?Math.min(1,N-1):c0,hp=N>=2?{u:rays[i0],l:rays[i0+K],c:rays[i0].col}:null;
+  if(hp){hp.F=[hp.l.S[0]+e[0]*K*sp*st,hp.l.S[1]+e[1]*K*sp*st];ctx.setLineDash([4,4]);ctx.strokeStyle=hp.c;ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(...hp.u.S);ctx.lineTo(...hp.F);ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle=hp.c;ctx.globalAlpha=0.45;ctx.lineWidth=9;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(...hp.l.S);ctx.lineTo(...hp.F);ctx.stroke();ctx.lineCap='butt';ctx.globalAlpha=1;}
+  for(const ry of rays){ctx.globalAlpha=ry.alpha;const big=HL>=0&&ry.cls===HL;ctx.fillStyle=ry.kind==='edge'?'#fff':ry.col;ctx.strokeStyle=ry.kind==='edge'?'#d32f2f':'#fff';ctx.lineWidth=ry.kind==='edge'?2.5:1.5;ctx.beginPath();ctx.arc(ry.S[0],ry.S[1],big?6.5:ry.kind==='edge'?5.5:4.5,0,7);ctx.fill();ctx.stroke();}
+  ctx.globalAlpha=1;
+  const pdiff=al/N*st;
+  WFG=null;const segs=[[T,F,6],[B,F,7]];if(hp)segs.push([hp.u.S,hp.F,5],[hp.l.S,hp.F,7]);
+  if(showW){const umax=Math.min(...rays.map(ry=>ry.len-ry.eta*st))-14;
+    if(umax>lpx){const u=WFf*umax,p1=[T[0]+e[0]*u,T[1]+e[1]*u],p2=[B[0]+e[0]*(D*st+u),B[1]+e[1]*(D*st+u)];
+      const dx=p1[0]-p2[0],dy=p1[1]-p2[1],dn=Math.hypot(dx,dy)||1,ex2=dx/dn*16,ey2=dy/dn*16;
+      ctx.strokeStyle='#e65100';ctx.lineWidth=2.2;ctx.setLineDash([10,5]);ctx.beginPath();ctx.moveTo(p2[0]-ex2,p2[1]-ey2);ctx.lineTo(p1[0]+ex2,p1[1]+ey2);ctx.stroke();ctx.setLineDash([]);segs.push([[p2[0]-ex2,p2[1]-ey2],[p1[0]+ex2,p1[1]+ey2],5]);
+      const mid=[(p1[0]+p2[0])/2,(p1[1]+p2[1])/2];ctx.fillStyle='#e65100';ctx.save();ctx.translate(...mid);ctx.rotate(t>0?-t:0);ctx.fillRect(-7,-9,14,18);ctx.fillStyle='#fff';ctx.fillRect(-4,-5,2,10);ctx.fillRect(2,-5,2,10);ctx.restore();
+      const qs={};for(const ry of rays){const q=ry.eta*st+u,[x,y]=waveAt(ry,q),bx=ry.S[0]+e[0]*q,by=ry.S[1]+e[1]*q;qs[ry.i]=q;const big=HL>=0&&ry.cls===HL;if(HL>=0&&!big)continue;
+        ctx.strokeStyle=ry.col;ctx.lineWidth=big?2:1.2;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(x,y);ctx.stroke();ctx.fillStyle='#fff';ctx.lineWidth=big?3:2;ctx.beginPath();ctx.arc(x,y,big?6.5:3.5,0,7);ctx.fill();ctx.stroke();}
+      const diff=hp?(qs[hp.l.i]-qs[hp.u.i])/lpx:0,f2=diff-Math.floor(diff),lab=!hp?'同相':Math.min(f2,1-f2)<0.03?'同相':Math.abs(f2-0.5)<0.03?'反相 → 抵消':`相位差 ${f2.toFixed(2)}λ`;
+      WFG={p1,p2,mid,u,umax,f:WFf,diff,frac:f2,label:lab,T:[...T],e:[...e],off:D*st,qs};}}
+  // ---- labels: nearest free spot (no overlap with each other, rays/waves, segments, inset, zoom column, text box)
+  const occ=[[sx-8,0,16,h],IR,ZR,TB,[sx-60,cy-14,22,26],[sx-26,T[1]-2,22,D+4]];if(WFG)occ.push([WFG.mid[0]-11,WFG.mid[1]-11,22,22]);
+  const segHit=(r,P0,P1,pad)=>{const L2=Math.hypot(P1[0]-P0[0],P1[1]-P0[1]);for(let q=0;q<=L2;q+=3){const f=L2?q/L2:0;if(rectHit(r,P0[0]+(P1[0]-P0[0])*f,P0[1]+(P1[1]-P0[1])*f,pad))return true;}return false;};
+  const clear=r=>{if(r[0]<2||r[1]<2||r[0]+r[2]>w-2||r[1]+r[3]>h-2)return false;for(const o of occ)if(ovl(r,o))return false;
+    for(const ry of rays){const ex=e[0],ey=e[1],pad=ry.pad+1,cxr=r[0]+r[2]/2-ry.S[0],cyr=r[1]+r[3]/2-ry.S[1],along=cxr*ex+cyr*ey,perp=Math.abs(-cxr*ey+cyr*ex),rad=Math.hypot(r[2],r[3])/2+pad;if(perp>rad||along<-rad||along>ry.len+rad)continue;
+      for(let q=Math.max(0,along-rad);q<=Math.min(ry.len,along+rad);q+=2)if(rectHit(r,ry.S[0]+ex*q,ry.S[1]+ey*q,pad))return false;}
+    for(const [a0,a1,pd] of segs)if(segHit(r,a0,a1,pd))return false;return true;};
+  const wfl=WFG?WFG.label:'',lbl=[['thM','θ','bold '+fz(20),'#1b2430',M[0]+R0*Math.cos(t/2),M[1]-R0*Math.sin(t/2),false],['thT','θ','bold '+fz(18),'#1b2430',T[0]+Math.min(30,D*0.25)*Math.sin(t/2)+6,T[1]+Math.min(30,D*0.25)*Math.cos(t/2),false],
+    ['asin','a sinθ','bold '+fz(18),'#c25e00',(B[0]+F[0])/2,(B[1]+F[1])/2,false],];if(hp)lbl.push(['pair',`Δ = ${pdiff.toFixed(2)}λ`,'bold '+fz(16),hp.c,(hp.l.S[0]+hp.F[0])/2,(hp.l.S[1]+hp.F[1])/2,true]);
+  if(WFG)lbl.push(['wf','波前：'+wfl,'bold '+fz(16),wfl==='同相'?'#c2185b':wfl.startsWith('反相')?'#2e7d32':'#e65100',WFG.mid[0],WFG.mid[1],true]);
+  if(WFG&&!dragged)lbl.push(['hint','拖曳波前 ⟷','bold '+fz(13),'#e65100',WFG.mid[0],WFG.mid[1],false]);
+  if(wave&&!showW)lbl.push(['legend','a/λ 太大，不畫橫波示意',''+fz(13),'#5a6878',B[0]+20,B[1]+30,false]);
+  const key=[w,h,P.th,P.a,P.lam,P.lg,m,HL,WFG?WFG.u.toFixed(1):'',showW,zones,lbl.map(l=>l[1]).join('|'),IR.join(',')].join(';');
+  if(PLC.key!==key){const LABS=[];
+    for(const [name,text,font,color,ax,ay,box] of lbl){ctx.font=font;const tw=ctx.measureText(text).width+10,th2=parseInt(font.match(/(\d+)px/)[1])+9;const cl=[];
+      for(let dy=-240;dy<=240;dy+=8)for(let dx=-tw-120;dx<=240;dx+=8){const r=[ax+dx,ay+dy,tw,th2];const qx=Math.max(r[0],Math.min(ax,r[0]+r[2])),qy=Math.max(r[1],Math.min(ay,r[1]+r[3]));cl.push([Math.hypot(qx-ax,qy-ay),r]);}
+      cl.sort((p1,p2)=>p1[0]-p2[0]);let best=null;for(const [,r] of cl)if(clear(r)){best=r;break;}if(!best)best=[Math.max(sx+12,Math.min(w-tw-6,ax+14)),Math.min(h-th2-6,ay+30),tw,th2];
+      occ.push(best);LABS.push({name,rect:best});}
+    PLC={key,LABS};}
+  const LABS=PLC.LABS.map((L,i)=>({...L,text:lbl[i][1],font:lbl[i][2],color:lbl[i][3],ax:lbl[i][4],ay:lbl[i][5],box:lbl[i][6]}));
+  for(const L of LABS){const r=L.rect;const lcx=Math.max(r[0],Math.min(L.ax,r[0]+r[2])),lcy=Math.max(r[1],Math.min(L.ay,r[1]+r[3]));if((L.box||L.name.startsWith('th'))&&Math.hypot(lcx-L.ax,lcy-L.ay)>14){ctx.strokeStyle=L.color;ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(lcx,lcy);ctx.lineTo(L.ax,L.ay);ctx.stroke();ctx.setLineDash([]);}
+    if(L.box){ctx.fillStyle='rgba(255,255,255,0.95)';ctx.strokeStyle='#cfd8e3';ctx.lineWidth=1;ctx.fillRect(...r);ctx.strokeRect(...r);}
+    ctx.font=L.font;ctx.fillStyle=L.color;ctx.textBaseline='middle';ctx.fillText(L.text,r[0]+5,r[1]+r[3]/2+1);ctx.textBaseline='alphabetic';}
+  PG={N,K,sp,HL,hpI:hp?[hp.u.i,hp.l.i]:null,rays:rays.map(r=>({S:[...r.S],e:[...r.e],len:r.len,A:r.pad-4,kind:r.kind,eta:r.eta,i:r.i,cls:r.cls,alpha:r.alpha})),pairs:pairs.map(q=>({du:q.u.eta,dl:q.l.eta,c:q.c,cls:q.cls})),labels:LABS.map(l=>({name:l.name,rect:l.rect,text:l.text})),fixed:occ.slice(0,6),inset:[...IR],zoom:[...ZR],text:TB,D,zw,m,pdiff,lpx,showW,segs:segs.map(s=>[[...s[0]],[...s[1]],s[2]])};
+  if(hasIns)drawInset(IR,Ld,t);drawZoom(ZR,Ld,t,al);
+  ctx.fillStyle='rgba(255,255,255,0.94)';ctx.strokeStyle='#cfd8e3';ctx.lineWidth=1;ctx.fillRect(...TB);ctx.strokeRect(...TB);
+  ctx.font=`bold ${tfs}px sans-serif`;TL.forEach((q,i)=>{const last=i===TL.length-1;ctx.fillStyle=!last?'#1b2430':verdict(xr).startsWith('暗')?'#2e7d32':verdict(xr).startsWith('亮')||verdict(xr).startsWith('中央')?'#b71c1c':'#1b2430';ctx.fillText(q,14,TB[1]+(i+1)*(tfs+6)+2);});
+  ctx.restore();}
+function drawInset(R,Ld,t){const [bx,by,bw,bh]=R;ctx.save();ctx.fillStyle='#f4f7fb';ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle='#9aa4ae';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+  ctx.beginPath();ctx.rect(bx,by,bw,bh);ctx.clip();const top=by+8,bot=by+bh-22,yP=Ld*Math.tan(t);
+  const sc=Math.min((bw-22)/Ld,(bot-top-6)/(yP+1.2)),ox=bx+8,oy=bot-0.6*sc-2,Px=ox+Ld*sc,Py=oy-yP*sc;
+  ctx.fillStyle='#39424e';ctx.fillRect(ox-1.5,top-4,3,Math.max(0,oy-0.5*sc-top+4));ctx.fillRect(ox-1.5,oy+0.5*sc,3,bot+4-oy-0.5*sc);
+  ctx.strokeStyle='#1b2430';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(Px,top-4);ctx.lineTo(Px,bot+4);ctx.stroke();
+  ctx.strokeStyle='#d32f2f';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(ox,oy-0.5*sc);ctx.lineTo(Px,Py);ctx.moveTo(ox,oy+0.5*sc);ctx.lineTo(Px,Py);ctx.stroke();
+  ctx.setLineDash([3,3]);ctx.strokeStyle='#8a96a3';ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(Px,oy);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#7a2fc0';ctx.beginPath();ctx.arc(Px,Py,4,0,7);ctx.fill();
+  ctx.font='bold 13px sans-serif';ctx.fillStyle='#1b2430';ctx.fillText(`全圖：L = ${Math.round(Ld)}a`,bx+6,by+bh-6);INSG={Px,Py,sc,oy,yP};ctx.restore();}
+function drawZoom(R,Ld,t,al){const [bx,by,bw,bh]=R;ctx.save();ctx.fillStyle='#f4f7fb';ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle='#9aa4ae';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+  const fs=Math.round(Math.max(13,Math.min(15,bw*0.09))),top=by+46,bot=by+bh-30,yP=Ld*Math.tan(t);
+  ctx.font=`bold ${fs}px sans-serif`;ctx.fillStyle='#1b2430';ctx.textAlign='center';ctx.fillText('屏幕局部放大',bx+bw/2,by+19);ctx.font=`${fs-1}px sans-serif`;ctx.fillStyle='#5a6878';ctx.fillText('（P 附近）',bx+bw/2,by+37);ctx.textAlign='left';
+  const sp=Ld/al/Math.pow(Math.cos(t),3),hw=Math.min(1.8*sp,Ld*1.5),zw=Math.round(Math.max(24,bw*0.24)),zx=bx+14,zc=(top+bot)/2,zh=(bot-top)/2,mapY=y=>zc-(y-yP)/hw*zh;
+  const xOf=y=>al*Math.sin(Math.atan(y/Ld)),Iat=y=>{const b=Math.PI*xOf(y);return sinc(b)**2;};
+  for(let py=top;py<=bot;py++){const v=Math.pow(Iat(yP+(zc-py)/zh*hw),0.6);ctx.fillStyle=`rgb(${Math.round(15+240*v)},${Math.round(15+90*v)},${Math.round(25+70*v)})`;ctx.fillRect(zx,py,zw,1.2);}
+  ctx.strokeStyle='#1b2430';ctx.lineWidth=1;ctx.strokeRect(zx,top,zw,bot-top);
+  const xlo=xOf(yP-hw),xhi=xOf(yP+hw),marks=[];const add=(type,val,lab)=>{if(Math.abs(val)>=al)return;const y=Ld*Math.tan(Math.asin(val/al)),py=mapY(y);if(py<top-1||py>bot+1)return;marks.push({type,val,lab,y,py});};
+  for(let k=Math.ceil(xlo);k<=Math.floor(xhi);k++)if(k)add('dark',k,bw<120?`暗${k<0?'−':''}${Math.abs(k)}`:`暗 m=${k<0?'−':''}${Math.abs(k)}`);
+  add('bright',0,'中央');for(const v of SM)for(const s of [1,-1])if(s*v>=xlo&&s*v<=xhi)add('bright',s*v,'亮');
+  marks.sort((p1,p2)=>p1.py-p2.py);const dx=zx+zw+12,rr=Math.max(5,fs*0.42);let lastLy=-1e9;ctx.textBaseline='middle';
+  for(const mk of marks){const sel=SEL&&mk.type===SEL.type&&Math.abs(mk.val-SEL.val)<1e-6&&Math.abs(al*Math.sin(t)-SEL.val)<0.01;
+    if(sel){ctx.strokeStyle='#f39c12';ctx.lineWidth=3.5;ctx.beginPath();ctx.arc(dx,mk.py,rr+5,0,7);ctx.stroke();}
+    ctx.strokeStyle='rgba(27,36,48,0.35)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(zx+zw,mk.py);ctx.lineTo(dx-rr,mk.py);ctx.stroke();
+    if(mk.type==='bright'){ctx.fillStyle='#ffd54f';ctx.strokeStyle='#8a6d00';ctx.lineWidth=1.5;}else{ctx.fillStyle='#fff';ctx.strokeStyle='#2e7d32';ctx.lineWidth=2.2;}
+    ctx.beginPath();ctx.arc(dx,mk.py,rr,0,7);ctx.fill();ctx.stroke();
+    if(mk.py-lastLy>=fs+3){ctx.font=`bold ${fs}px sans-serif`;ctx.fillStyle=mk.type==='bright'?'#b71c1c':'#2e7d32';ctx.fillText(mk.lab,dx+rr+5,mk.py);lastLy=mk.py;}}
+  ctx.fillStyle='#7a2fc0';ctx.beginPath();ctx.moveTo(zx-1,zc);ctx.lineTo(zx-11,zc-7);ctx.lineTo(zx-11,zc+7);ctx.fill();
+  ctx.strokeStyle='#7a2fc0';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(zx,zc);ctx.lineTo(zx+zw,zc);ctx.stroke();
+  const v=verdict(al*Math.sin(t)),pst=v.startsWith('暗')?v.replace('（',' ').replace('）',''):v.startsWith('亮')?'亮（次亮）':v.startsWith('中央')?'中央亮紋':'介於';
+  ctx.textBaseline='alphabetic';ctx.font=`bold ${fs}px sans-serif`;ctx.fillStyle='#7a2fc0';ctx.fillText(`P：${pst}`,bx+8,by+bh-9);
+  const G=INSG||{};INS={marks,yP,hw,zc,zh,Px:G.Px,Py:G.Py,sc:G.sc,oy:G.oy,rect:[...R],font:fs,dot:rr,strip:[zx,top,zw,bot-top]};ctx.restore();}
+let VERD=null,ZT='';
+// ---------- UI ----------
+const AMIN=0.4,AMAX=16,aOf=s=>AMIN*Math.pow(AMAX/AMIN,s/100),sOf=a=>100*Math.log(a/AMIN)/Math.log(AMAX/AMIN);
+const LIM={lam:[0.3,3],a:[AMIN,AMAX],L:[10,26],sp:[0.1,2],th:[0,TH_MAX],lg:[0,100]};
+function fmt(){ordUI();$('lv').textContent=P.lam.toFixed(2);$('av').textContent=P.a.toFixed(2);$('Lv').textContent=P.L.toFixed(1);$('spv').textContent=P.sp.toFixed(1);
+  for(const k of ['lam','L','sp','th','lg'])$(k).value=P[k];$('a').value=sOf(P.a);$('al').textContent=(P.a/P.lam).toFixed(2);$('thv').textContent=P.th.toFixed(1);$('ldv').textContent=Math.round(LdOf());
+  $('cw').textContent=(2*P.L*P.lam/P.a).toFixed(2);if(probe.onScreen)probe.x=XS+P.L;}
+function setP(k,v){if(k==='th'||k==='a'||k==='lam')SEL=null;P[k]=Math.round(Math.min(LIM[k][1],Math.max(LIM[k][0],v))*1000)/1000;fmt();}
+for(const k of ['lam','L','sp','th','lg'])$(k).oninput=e=>setP(k,+e.target.value);$('a').oninput=e=>setP('a',aOf(+e.target.value));
+function hold(btn,fn){let to,iv;const stop=()=>{clearTimeout(to);clearInterval(iv);};btn.addEventListener('pointerdown',e=>{e.preventDefault();stop();fn();to=setTimeout(()=>iv=setInterval(fn,60),400);});['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop));}
+document.querySelectorAll('.hold').forEach(b=>hold(b,()=>b.dataset.k==='a'?setP('a',aOf(Math.min(100,Math.max(0,sOf(P.a)+ +b.dataset.s)))):setP(b.dataset.k,P[b.dataset.k]+ +b.dataset.s)));
+const tog=(id,f)=>$(id).onclick=()=>{const v=f();$(id).classList.toggle('on',v);};
+tog('tWave',()=>wave=!wave);tog('tZone',()=>zones=!zones);tog('tSrc',()=>showSrc=!showSrc);tog('tDir',()=>showDir=!showDir);
+tog('tPar',()=>{par=!par;$('parBox').style.display=par?'':'none';return par;});
+// orders reachable within θ ≤ 50°: dark a sinθ = mλ (m=1…mD), secondary bright ≈ (m+½)λ (true tanβ=β)
+var ordD=1,ordB=0;const ordMax=()=>{const x=P.a/P.lam*Math.sin(TH_MAX*Math.PI/180);return {mD:Math.min(8,Math.floor(x+1e-9)),nB:SM.filter(v=>v<=x+1e-9).length};};
+function ordUI(){const o=ordMax();ordD=Math.max(1,Math.min(ordD,Math.max(1,o.mD)));ordB=Math.max(0,Math.min(ordB,o.nB));
+  $('odV').textContent=o.mD<1?'無（a/λ 太小）':`m = ${ordD}（${2*ordD} 區）`;$('obV').textContent=ordB===0?'中央（1 區）':`次亮 ${ordB}（${2*ordB+1} 區）`;
+  $('odM').disabled=ordD<=1||o.mD<1;$('odP').disabled=ordD>=o.mD;$('snapD').disabled=o.mD<1;$('obM').disabled=ordB<=0;$('obP').disabled=ordB>=o.nB;$('snapB').disabled=false;hlUI();}
+function aim(type){const o=ordMax();if(type==='dark'&&o.mD<1)return;const val=type==='dark'?ordD:ordB===0?0:SM[ordB-1],s=val*P.lam/P.a;if(s>1)return;P.th=Math.round(Math.asin(s)*180/Math.PI*1e6)/1e6;SEL={type,val};fmt();SEL={type,val};}
+function hlUI(){$('hlV').textContent=HL<0?'全部':`第 ${HL+1} 組`;$('hlM').disabled=HL<0;$('hlP').disabled=HL>=HLK-1;}
+$('hlM').onclick=()=>{HL=Math.max(-1,HL-1);hlUI();};$('hlP').onclick=()=>{HL=Math.min(HLK-1,HL+1);hlUI();};
+$('snapD').onclick=()=>aim('dark');$('snapB').onclick=()=>aim('bright');
+$('odM').onclick=()=>{ordD--;ordUI();aim('dark');};$('odP').onclick=()=>{ordD++;ordUI();aim('dark');};$('obM').onclick=()=>{ordB--;ordUI();aim('bright');};$('obP').onclick=()=>{ordB++;ordUI();aim('bright');};
+$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'❚❚ 暫停':'▶ 播放';$('play').classList.toggle('on',playing);};
+// drags: wavefront (construction view) or probe (main view) — never both
+let drag=false;
+function wMove(px,py){if(!WFG)return;const g=WFG,u=(px-g.T[0])*g.e[0]+(py-g.T[1])*g.e[1];WFf=Math.max(0,Math.min(1,u/g.umax));}
+$('view').addEventListener('pointerdown',e=>{const r=$('view').getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
+  if(par){if(PG&&Math.abs(px-PG.rays[0].S[0])<16){let best=null,bd=1e9;for(const r of PG.rays){const d=Math.abs(py-r.S[1]);if(d<bd){bd=d;best=r;}}if(best&&bd<Math.max(8,PG.sp/2+1)){HL=HL===best.cls?-1:best.cls;hlUI();e.preventDefault();return;}}
+    if(WFG&&px<(NARROW?W:TW)){const a2=WFG.p2,b2=WFG.p1,vx=b2[0]-a2[0],vy=b2[1]-a2[1],L2=vx*vx+vy*vy||1,k=Math.max(-0.2,Math.min(1.2,((px-a2[0])*vx+(py-a2[1])*vy)/L2)),dd=Math.hypot(px-a2[0]-k*vx,py-a2[1]-k*vy);
+      if(dd<(e.pointerType==='touch'?26:15)){wdrag=true;dragged=true;e.preventDefault();$('view').setPointerCapture(e.pointerId);}}
+    if(!wdrag&&!NARROW&&px>stripX&&px<stripX+stripW){drag=true;$('view').setPointerCapture(e.pointerId);move(px,py);}return;}
+  if(Math.hypot(px-X(probe.x),py-Yp(probe.y))<(e.pointerType==='touch'?30:22)||(px>stripX&&px<stripX+stripW)){drag=true;$('view').setPointerCapture(e.pointerId);move(px,py);}});
+$('view').addEventListener('pointermove',e=>{const r=$('view').getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;if(wdrag)wMove(px,py);else if(drag)move(px,py);});
+['pointerup','pointercancel'].forEach(t=>$('view').addEventListener(t,()=>{drag=false;wdrag=false;}));
+function move(px,py){let [x,y]=toW(Math.min(px,X(XS+P.L)),py);const on=par||px>=X(XS+P.L)-12;setProbe(x,y,on);}
+function setProbe(x,y,onScreen){probe.onScreen=!!onScreen;probe.x=onScreen?XS+P.L:Math.max(XS+0.5,Math.min(XS+P.L,x));probe.y=Math.max(-Y0+0.3,Math.min(Y0-0.3,y));}
+function probeInfo(){const D=edgeDiff(probe.x,probe.y)/P.lam,r=Math.hypot(probe.x-XS,probe.y),x=P.a/P.lam*probe.y/r,F=P.a*P.a/(P.lam*r);return {D,x,t:F>3.75?'近場：不適用遠場條件':verdict(x)};}
+// ---------- loop ----------
+let last=performance.now(),frames=0,cost=0;
+function frame(now){const dt=Math.min(0.05,(now-last)/1000);last=now;frames++;if(playing)phase+=dt*2*Math.PI*P.sp*1.2;if(probe.onScreen)probe.x=XS+P.L;
+  const t0=performance.now();drawField();drawOverlay();cost=cost*0.95+(performance.now()-t0)*0.05;
+  const pi=probeInfo();$('probeTxt').innerHTML=`邊緣光程差 Δ = ${f2(pi.D)}λ<br>a sinθ = ${f2(pi.x)}λ → ${pi.t}`;
+  const fd=fades();let capA='暗紋：a sinθ = mλ（m = ±1, ±2…）；中央亮紋寬為其他亮紋的 2 倍';let cs=fd.small,cl=fd.large;
+  if(par){capA=LdOf()<10?`L 只有 ${Math.round(LdOf())}a：光線不平行，Δ 與 a sinθ 有差距`:'L ≫ a：光線近似平行；上下半縫配對差 λ/2 → 兩兩抵消 → 暗';cs=0;cl=0;}
+  {const cd=par?'none':'';if($('caption').style.display!==cd)$('caption').style.display=cd;}OP.cap=cs+cl;if($('capA').textContent!==capA)$('capA').textContent=capA;$('capA').style.opacity=1-cs-cl;$('capS').style.opacity=cs;$('capL').style.opacity=cl;
+  requestAnimationFrame(frame);}
+fmt();layout();setProbe(0,darkY(1)||4,true);requestAnimationFrame(frame);
+window.__ss={P,probe,setP,setProbe,intensity:(x,y)=>intensity(x,y),darkY,edgeDiff,farField,LdOf,ff:()=>FF,pg:()=>PG,ins:()=>INS,wf:()=>WFG&&{...WFG},setWF:v=>{WFf=v;},
+  orders:()=>({ordD,ordB,...ordMax(),sel:SEL}),setHL:v=>{HL=v;hlUI();},hl:()=>HL,zt:()=>ZT,opac:()=>({...OP}),aa:()=>AA,verd:()=>VERD,toggle:id=>$(id).click(),
+  state:()=>({lam:P.lam,a:P.a,L:P.L,th:P.th,probeTxt:$('probeTxt').textContent,frames,cost,caption:OP.small>0.5?$('capS').textContent:OP.large>0.5?$('capL').textContent:$('capA').textContent}),
+  screenMinima:(lim=14,st=0.004)=>{const xs=XS+P.L,N=NJ(),out=[];let pp=-1,prev=-1;for(let y=-lim;y<=lim;y+=st){const v=intensity(xs,y,N);if(pp>=0&&prev<pp&&prev<v)out.push(+(y-st).toFixed(3));pp=prev;prev=v;}return out;}};
+</script>
+</body>
+</html>
