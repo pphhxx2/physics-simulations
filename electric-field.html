@@ -38,7 +38,7 @@ label.sl{min-width:104px;font-weight:700;white-space:nowrap}input[type=range]{fl
   <div class="sec"><h3>視角</h3>
    <div class="row"><button id="v2" class="big on">2D</button><button id="v3" class="big">3D</button><button id="vr" disabled>重設視角</button></div></div>
   <div class="sec"><h3>顯示</h3>
-   <div class="row"><button id="tE" class="big on">電場</button><button id="tV" class="big">等位線</button></div>
+   <div class="row"><button id="tE" class="big on">電場</button><button id="tL" class="big">電力線</button><button id="tV" class="big">等位線</button></div>
    <div class="row"><label class="sl">箭頭倍率 <span id="amv"></span></label><button class="hold" data-k="am" data-s="-1">－</button><input type="range" id="am" min="0" max="8" step="1"><button class="hold" data-k="am" data-s="1">＋</button></div>
    <div class="row"><label class="sl">ΔV <span id="dvv"></span></label><button class="hold" data-k="dv" data-s="-5">－</button><input type="range" id="dv" min="10" max="200" step="5"><button class="hold" data-k="dv" data-s="5">＋</button></div>
    <div class="note">箭頭長度 ∝ |E|（近電荷處截斷）</div>
@@ -54,7 +54,7 @@ label.sl{min-width:104px;font-weight:700;white-space:nowrap}input[type=range]{fl
 const $=id=>document.getElementById(id);
 // units: 1 格 = 10 cm, q in μC → V = 90·Σq/r kV, |E| = 900·|Σq r̂/r²| kV/m (r in 格)
 const K_V=90,K_E=900,QMAX=12,AM=[0.25,0.35,0.5,0.7,1,1.4,2,2.8,4];
-let Q=[],nid=1,sel=null,view='2d',showE=true,showV=false,amI=4,dVkV=20,dirty=true,hover=null;
+let Q=[],nid=1,sel=null,view='2d',showE=true,showV=false,showL=false,amI=4,dVkV=20,dirty=true,hover=null;
 const TOP={az:-Math.PI/2,el:Math.PI/2,zoom:1},cam={...TOP};   // 3D starts as a straight top-down view (= 2D layout)
 const cv=$('cv'),ctx=cv.getContext('2d');
 let W=1,H=1,DPR=1,S=60,hw=5,hh=5;
@@ -81,6 +81,28 @@ function march(Vg,nx,ny,X,Y,step,NL,cb){for(let j=0;j<ny-1;j++)for(let i=0;i<nx-
     const k=P.filter(p=>p);if(k.length===2)cb(n,k[0][0],k[0][1],k[1][0],k[1][1]);
     else if(k.length===4){const ctr=(a+b+c+d)/4;if((ctr>=L)===(a>=L)){cb(n,...P[0],...P[1]);cb(n,...P[2],...P[3]);}else{cb(n,...P[3],...P[0]);cb(n,...P[1],...P[2]);}}}}}
 const NL=10,lvCol=n=>n>0?'#d0392b':n<0?'#1f5fd0':'#6b7684';
+// ---------- field lines: RK4 along Ê with adaptive step, 8 lines per μC ----------
+const LPQ=8,FLC='#6b3fb8',R0=0.12,REND=0.1;let flCache={key:'',lines:[]},lastLines=null,lastNseg=0;
+function dirE(x,y,sg){const [,ex,ey]=VE(x,y),m=Math.hypot(ex,ey);return m>1e-12?[sg*ex/m,sg*ey/m]:null;}
+function traceLine(x,y,sg,skip){const pts=[[x,y]],XB=2*hw,YB=2*hh,LMAX=8*(hw+hh);let len=0,to=null;
+  for(let k=0;k<5000;k++){let dm=1e9,nc=null;for(const c of Q){const d=Math.hypot(x-c.x,y-c.y);if(d<dm){dm=d;nc=c;}}
+    if(nc&&dm<REND&&nc.id!==skip&&Math.sign(nc.q)===-sg){pts.push([nc.x,nc.y]);to=nc.id;break;}
+    const h=Math.min(0.3,Math.max(0.008,0.2*dm)),k1=dirE(x,y,sg);if(!k1)break;const k2=dirE(x+h/2*k1[0],y+h/2*k1[1],sg);if(!k2)break;const k3=dirE(x+h/2*k2[0],y+h/2*k2[1],sg);if(!k3)break;const k4=dirE(x+h*k3[0],y+h*k3[1],sg);if(!k4)break;
+    const nx=x+h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]),ny=y+h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]);len+=Math.hypot(nx-x,ny-y);x=nx;y=ny;pts.push([x,y]);
+    if(Math.abs(x)>XB||Math.abs(y)>YB||len>LMAX)break;}
+  return {pts,to};}
+function fieldLines(){const key=JSON.stringify(Q)+'|'+hw.toFixed(4)+'|'+hh.toFixed(4);if(flCache.key===key)return flCache.lines;
+  const lines=[],arr={};
+  for(const c of Q)if(c.q>0){const n=Math.max(1,Math.round(LPQ*c.q));for(let i=0;i<n;i++){const a=2*Math.PI*(i+0.5)/n,t=traceLine(c.x+R0*Math.cos(a),c.y+R0*Math.sin(a),1,c.id);t.pts.unshift([c.x,c.y]);
+    if(t.to!==null){const e=Q.find(q=>q.id===t.to),pp=t.pts[t.pts.length-2];(arr[t.to]=arr[t.to]||[]).push(Math.atan2(pp[1]-e.y,pp[0]-e.x));}lines.push({pts:t.pts,from:c.id,to:t.to});}}
+  for(const c of Q)if(c.q<0){const n=Math.max(1,Math.round(LPQ*-c.q)),got=arr[c.id]||[];if(got.length>=n)continue;let cand=Array.from({length:n},(_,i)=>2*Math.PI*(i+0.5)/n);
+    for(const a of got){if(!cand.length)break;let bi=0,bd=9;cand.forEach((b,i)=>{const d=Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));if(d<bd){bd=d;bi=i;}});cand.splice(bi,1);}
+    for(const a of cand){const t=traceLine(c.x+R0*Math.cos(a),c.y+R0*Math.sin(a),-1,c.id);const pts=t.pts.reverse();pts.push([c.x,c.y]);lines.push({pts,from:t.to,to:c.id,back:true});}}
+  flCache={key,lines};return lines;}
+const inScene=(x,y)=>Math.abs(x)<=hw&&Math.abs(y)<=hh;
+function headMarks(pts,cb){let L=0;const cum=[0];for(let i=1;i<pts.length;i++){L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);cum.push(L);}if(L<0.6)return;
+  const m=Math.max(1,Math.round(L/2.2));let j=1;for(let k=0;k<m;k++){const s=(k+0.5)*L/m;while(j<pts.length-1&&cum[j]<s)j++;const a=pts[j-1],b=pts[j],f=(s-cum[j-1])/Math.max(1e-9,cum[j]-cum[j-1]),x=a[0]+(b[0]-a[0])*f,y=a[1]+(b[1]-a[1])*f;if(inScene(x,y))cb(x,y,b[0]-a[0],b[1]-a[1]);}}
+function head2(x,y,dx,dy,sz,col){const L=Math.hypot(dx,dy);if(L<1e-9)return;const ux=dx/L,uy=dy/L,w=sz*0.55;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x+ux*sz*0.5,y+uy*sz*0.5);ctx.lineTo(x-ux*sz*0.5-uy*w,y-uy*sz*0.5+ux*w);ctx.lineTo(x-ux*sz*0.5+uy*w,y-uy*sz*0.5-ux*w);ctx.closePath();ctx.fill();}
 // ---------- 2D ----------
 let lastArrows=null,lastLevels=null;
 function arrow2(x0,y0,x1,y1,w,col){const dx=x1-x0,dy=y1-y0,L=Math.hypot(dx,dy);if(L<1.5)return;const ux=dx/L,uy=dy/L,hl=Math.min(L*0.7,Math.max(3.5,L*0.38)),hwd=hl*0.55;
@@ -97,6 +119,8 @@ function drawCharge(c,x,y,r){const p=c.q>0;const g=ctx.createRadialGradient(x-r*
 function draw2D(){ctx.fillStyle='#f7f9fc';ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='#e3e9f0';ctx.lineWidth=1;ctx.beginPath();for(let k=Math.ceil(-hw);k<=hw;k++){ctx.moveTo(sx(k),0);ctx.lineTo(sx(k),H);}for(let k=Math.ceil(-hh);k<=hh;k++){ctx.moveTo(0,sy(k));ctx.lineTo(W,sy(k));}ctx.stroke();
   lastLevels=null;if(showV){const segs=contours2();lastLevels=segs;ctx.lineWidth=1.7;for(const n in segs){const s=segs[n];ctx.strokeStyle=lvCol(+n);ctx.beginPath();for(let k=0;k<s.length;k+=4){ctx.moveTo(s[k],s[k+1]);ctx.lineTo(s[k+2],s[k+3]);}ctx.stroke();}ctx.setLineDash([]);}
+  lastLines=null;if(showL){const ls=fieldLines();lastLines=ls;ctx.strokeStyle=FLC;ctx.lineWidth=1.6;ctx.lineJoin='round';ctx.beginPath();for(const l of ls){l.pts.forEach((p,i)=>i?ctx.lineTo(sx(p[0]),sy(p[1])):ctx.moveTo(sx(p[0]),sy(p[1])));}ctx.stroke();
+    for(const l of ls)headMarks(l.pts,(x,y,dx,dy)=>head2(sx(x),sy(y),dx,-dy,11,FLC));}
   lastArrows=null;if(showE){lastArrows=arrowGrid();for(const a of lastArrows.arr){const h=a.L*S/2;arrow2(sx(a.x)-a.ux*h,sy(a.y)+a.uy*h,sx(a.x)+a.ux*h,sy(a.y)-a.uy*h,1+1.5*a.L/lastArrows.cap,arrCol(a));}}
   for(const c of Q)drawCharge(c,sx(c.x),sy(c.y),rad(c));}
 // ---------- 3D (own perspective projection, painter's algorithm) ----------
@@ -126,10 +150,17 @@ function draw3D(){camSetup();ctx.fillStyle='#f7f9fc';ctx.fillRect(0,0,W,H);const
     march(V2,nx2+1,ny2+1,i=>-hw+i*dx2,j=>-hh+j*dy2,dVkV/K_V,NL,(n,x1,y1,x2,y2)=>{const z=hz(n*dVkV/K_V)+0.02,a=proj(x1,y1,z),b=proj(x2,y2,z);items.push({d:(a[2]+b[2])/2-bias,t:1,a,b,c:lvCol(n),dash:n===0});});}
   lastArrows=null;if(showE){lastArrows=arrowGrid();for(const ar of lastArrows.arr){const h=ar.L/2,x0=ar.x-ar.ux*h,y0=ar.y-ar.uy*h,x1=ar.x+ar.ux*h,y1=ar.y+ar.uy*h,a=proj(x0,y0,hz(VE(x0,y0)[0])+0.05),b=proj(x1,y1,hz(VE(x1,y1)[0])+0.05);
     items.push({d:(a[2]+b[2])/2-bias,t:2,a,b,w:1+1.5*ar.L/lastArrows.cap,c:arrCol(ar)});}}
+  lastLines=null;if(showL){const ls=fieldLines();lastLines=ls;let nseg=0;const zp=(x,y)=>proj(x,y,hz(VE(x,y)[0])+0.05);
+    for(const l of ls){let prev=null,last=null;for(let i=0;i<l.pts.length;i++){const [x,y]=l.pts[i];if(!inScene(x,y)){prev=null;continue;}const end=i===l.pts.length-1||i===0;
+        if(prev&&!end&&Math.hypot(x-last[0],y-last[1])<0.12)continue;const q=zp(x,y);if(prev){items.push({d:(prev[2]+q[2])/2-bias,t:4,a:prev,b:q});nseg++;}prev=q;last=[x,y];}
+      headMarks(l.pts,(x,y,dx,dy)=>{const L=Math.hypot(dx,dy),e=0.05,a=zp(x-dx/L*e,y-dy/L*e),b=zp(x+dx/L*e,y+dy/L*e);items.push({d:(a[2]+b[2])/2-1.5*bias,t:5,a,b});});}
+    lastNseg=nseg;}
   balls=[];for(const c of Q){const b=proj(c.x,c.y,c.q>0?hm:-hm),r=rad(c)*Math.max(0.6,Math.min(1.6,cam.zoom));balls.push({id:c.id,x:b[0],y:b[1],r});items.push({d:b[2]-3*bias,t:3,c,b,r});}
   items.sort((p,q)=>q.d-p.d);ctx.lineJoin='round';
   for(const it of items){if(it.t===0){const p=it.p;ctx.fillStyle=it.f;ctx.strokeStyle=it.s;ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);ctx.lineTo(p[1][0],p[1][1]);ctx.lineTo(p[2][0],p[2][1]);ctx.lineTo(p[3][0],p[3][1]);ctx.closePath();ctx.fill();ctx.stroke();}
     else if(it.t===1){ctx.strokeStyle=it.c;ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(it.a[0],it.a[1]);ctx.lineTo(it.b[0],it.b[1]);ctx.stroke();}
+    else if(it.t===4){ctx.strokeStyle=FLC;ctx.lineWidth=1.7;ctx.beginPath();ctx.moveTo(it.a[0],it.a[1]);ctx.lineTo(it.b[0],it.b[1]);ctx.stroke();}
+    else if(it.t===5)head2((it.a[0]+it.b[0])/2,(it.a[1]+it.b[1])/2,it.b[0]-it.a[0],it.b[1]-it.a[1],11*Math.max(0.7,Math.min(1.5,cam.zoom)),FLC);
     else if(it.t===2)arrow2(it.a[0],it.a[1],it.b[0],it.b[1],it.w,it.c);
     else drawCharge(it.c,it.b[0],it.b[1],it.r);}}
 function render(){ctx.setTransform(DPR,0,0,DPR,0,0);if(view==='2d')draw2D();else draw3D();}
@@ -147,7 +178,7 @@ function upd(){const c=cur();['sgP','sgN','del','qm'].forEach(id=>$(id).disabled
   $('sgP').classList.toggle('on',!!c&&c.q>0);$('sgN').classList.toggle('on',!!c&&c.q<0);$('qv').textContent=c?Math.abs(c.q).toFixed(1)+' μC':'—';if(c)$('qm').value=Math.abs(c.q);
   $('addP').disabled=$('addN').disabled=Q.length>=QMAX;
   $('chips').innerHTML=Q.map(c=>`<button class="chip ${c.q>0?'p':'n'}${c.id===sel?' on':''}" data-id="${c.id}">${fmtQ(c.q)}</button>`).join('')||'<span class="note">無電荷</span>';
-  $('v2').classList.toggle('on',view==='2d');$('v3').classList.toggle('on',view==='3d');$('vr').disabled=view!=='3d';$('tE').classList.toggle('on',showE);$('tV').classList.toggle('on',showV);
+  $('v2').classList.toggle('on',view==='2d');$('v3').classList.toggle('on',view==='3d');$('vr').disabled=view!=='3d';$('tE').classList.toggle('on',showE);$('tV').classList.toggle('on',showV);$('tL').classList.toggle('on',showL);
   $('am').value=amI;$('amv').textContent='×'+AM[amI];$('dv').value=dVkV;$('dvv').textContent=dVkV+' kV';cap();dirty=true;}
 function cap(){let t;if(hover&&view==='2d'){const [v,ex,ey]=VE(hover[0],hover[1]),E=Math.hypot(ex,ey)*K_E,V=v*K_V;t=`V = ${V>=0.5?'+':V<=-0.5?'−':''}${Math.abs(V).toFixed(0)} kV　|E| = ${E>=1e5?E.toExponential(2).replace('e+',' × 10^'):Math.round(E).toLocaleString()} kV/m`;}
   else t=view==='2d'?'拖曳電荷移動 · 雙擊空白處新增':'拖曳空白處旋轉 · 拖曳電荷移動 · 滾輪/雙指縮放';$('caption').textContent=t;}
@@ -178,14 +209,14 @@ function hold(btn,fn){let to,iv;const stop=()=>{clearTimeout(to);clearInterval(i
 document.querySelectorAll('.hold').forEach(b=>hold(b,()=>{const k=b.dataset.k,s=+b.dataset.s;if(k==='q'){const c=cur();if(c)setQ(Math.abs(c.q)+s);}else if(k==='am'){amI=Math.max(0,Math.min(AM.length-1,amI+s));upd();}else{dVkV=Math.max(10,Math.min(200,dVkV+s));upd();}}));
 $('qm').addEventListener('input',e=>setQ(+e.target.value));$('am').addEventListener('input',e=>{amI=+e.target.value;upd();});$('dv').addEventListener('input',e=>{dVkV=+e.target.value;upd();});
 $('v2').onclick=()=>{view='2d';upd();};$('v3').onclick=()=>{if(view!=='3d')Object.assign(cam,TOP);view='3d';hover=null;upd();};$('vr').onclick=()=>{Object.assign(cam,TOP);dirty=true;};
-$('tE').onclick=()=>{showE=!showE;upd();};$('tV').onclick=()=>{showV=!showV;upd();};
+$('tE').onclick=()=>{showE=!showE;upd();};$('tV').onclick=()=>{showV=!showV;upd();};$('tL').onclick=()=>{showL=!showL;upd();};
 $('addP').onclick=()=>addCharge(1);$('addN').onclick=()=>addCharge(-1);$('rst').onclick=reset;
 $('sgP').onclick=()=>setSign(1);$('sgN').onclick=()=>setSign(-1);$('del').onclick=delSel;
 $('chips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(b){sel=+b.dataset.id;upd();}});
 addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&sel!==null&&!/INPUT/.test(document.activeElement.tagName)){e.preventDefault();delSel();}});
 new ResizeObserver(fit).observe($('view'));fit();reset();loop();
 // test hooks
-window.__ef={state:()=>({Q:Q.map(c=>({...c})),sel,view,showE,showV,cam:{...cam},am:AM[amI],dVkV,W,H,S,hw,hh,caption:$('caption').textContent}),VE,toScreen:(x,y)=>[sx(x),sy(y)],
+window.__ef={moveCharge:(id,x,y)=>{const c=Q.find(q=>q.id===id);if(c){c.x=x;c.y=y;clampQ(c);dirty=true;}},lines:()=>lastLines,nseg3:()=>lastNseg,fieldLines:()=>fieldLines(),state:()=>({Q:Q.map(c=>({...c})),sel,view,showE,showV,showL,cam:{...cam},am:AM[amI],dVkV,W,H,S,hw,hh,caption:$('caption').textContent}),VE,toScreen:(x,y)=>[sx(x),sy(y)],
   ball:id=>balls.find(b=>b.id===id),proj:(x,y,z)=>{camSetup();return proj(x,y,z);},arrows:()=>lastArrows,levels:()=>lastLevels,render:()=>{dirty=false;render();},addCharge,select:id=>{sel=id;upd();},HM,K_V,K_E};
 </script>
 </body>
